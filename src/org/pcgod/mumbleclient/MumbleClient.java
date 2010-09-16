@@ -17,6 +17,9 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 
+import com.google.protobuf.ByteString;
+import com.google.protobuf.MessageLite;
+
 import net.sf.mumble.MumbleProto.Authenticate;
 import net.sf.mumble.MumbleProto.ChannelRemove;
 import net.sf.mumble.MumbleProto.ChannelState;
@@ -29,9 +32,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.text.format.DateUtils;
 import android.util.Log;
-
-import com.google.protobuf.ByteString;
-import com.google.protobuf.MessageLite;
 
 public class MumbleClient implements Runnable {
 	public enum MessageType {
@@ -136,7 +136,6 @@ public class MumbleClient implements Runnable {
 		}
 	}
 
-	@Override
 	public final void run() {
 		try {
 			final SSLContext ctx_ = SSLContext.getInstance("TLS");

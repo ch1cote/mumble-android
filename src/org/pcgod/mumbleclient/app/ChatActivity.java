@@ -34,7 +34,7 @@ public class ChatActivity extends Activity {
 	private static final int MENU_CLEAR = Menu.FIRST;
 
 	private OnEditorActionListener chatTextEditActionEvent = new OnEditorActionListener() {
-		@Override
+
 		public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
 			if (event != null && !event.isShiftPressed() && v != null) {
 				View focus = v.focusSearch(View.FOCUS_RIGHT);
@@ -55,7 +55,6 @@ public class ChatActivity extends Activity {
 		}
 	};
 	private OnClickListener sendOnClickEvent = new OnClickListener() {
-		@Override
 		public void onClick(final View v) {
 			sendMessage(chatTextEdit);
 		}

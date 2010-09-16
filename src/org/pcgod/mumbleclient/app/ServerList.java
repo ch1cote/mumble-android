@@ -38,24 +38,20 @@ public class ServerList extends ListActivity {
 			startManagingCursor(cursor);
 		}
 
-		@Override
 		public final int getCount() {
 			return cursor.getCount();
 		}
 
-		@Override
 		public final Object getItem(final int position) {
 			return getItemId(position);
 		}
 
-		@Override
 		public final long getItemId(final int position) {
 			cursor.moveToPosition(position);
 			return cursor.getLong(cursor
 					.getColumnIndexOrThrow(DbAdapter.SERVER_COL_ID));
 		}
 
-		@Override
 		public final View getView(final int position, final View v,
 				final ViewGroup parent) {
 			final LayoutInflater inflater = (LayoutInflater) context

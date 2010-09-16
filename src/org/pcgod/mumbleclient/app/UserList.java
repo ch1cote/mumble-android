@@ -76,14 +76,12 @@ public class UserList extends ListActivity {
 
 	private final ArrayList<User> userList = new ArrayList<User>();
 	private final OnClickListener joinButtonClickEvent = new OnClickListener() {
-		@Override
 		public void onClick(final View v) {
 			ServerList.client.joinChannel(channelId);
 		}
 	};
 
 	private final OnClickListener speakButtonClickEvent = new OnClickListener() {
-		@Override
 		public void onClick(final View v) {
 			if (rt == null) {
 				// start record

@@ -78,7 +78,6 @@ public class RecordThread implements Runnable {
 		return ar.getState() == AudioRecord.STATE_INITIALIZED;
 	}
 
-	@Override
 	public final void run() {
 		if (!initialized()) {
 			return;

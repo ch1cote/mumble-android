@@ -12,7 +12,6 @@ class PingThread implements Runnable {
 		this.mc = mc_;
 	}
 
-	@Override
 	public final void run() {
 		while (running) {
 			try {

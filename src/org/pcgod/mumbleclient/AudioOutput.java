@@ -54,7 +54,6 @@ class AudioOutput implements Runnable {
 		lock.unlock();
 	}
 
-	@Override
 	public void run() {
 		android.os.Process
 				.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);

@@ -1,10 +1,14 @@
-package org.pcgod.mumbleclient;
+package org.pcgod.mumbleclient.service;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.LinkedList;
 
 import org.pcgod.mumbleclient.jni.celt;
+
+import org.pcgod.mumbleclient.service.model.Channel;
+import org.pcgod.mumbleclient.service.model.User;
+
 
 class AudioUser {
 	JitterBuffer jb;

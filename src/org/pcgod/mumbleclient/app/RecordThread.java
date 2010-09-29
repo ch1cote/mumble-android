@@ -5,8 +5,8 @@ import java.nio.ByteBuffer;
 import java.nio.ShortBuffer;
 import java.util.LinkedList;
 
-import org.pcgod.mumbleclient.MumbleClient;
-import org.pcgod.mumbleclient.PacketDataStream;
+import org.pcgod.mumbleclient.service.MumbleClient;
+import org.pcgod.mumbleclient.service.PacketDataStream;
 import org.pcgod.mumbleclient.jni.SWIGTYPE_p_CELTEncoder;
 import org.pcgod.mumbleclient.jni.SWIGTYPE_p_CELTMode;
 import org.pcgod.mumbleclient.jni.SWIGTYPE_p_SpeexResamplerState;

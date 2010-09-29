@@ -1,4 +1,4 @@
-package org.pcgod.mumbleclient;
+package org.pcgod.mumbleclient.service;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -11,6 +11,9 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.pcgod.mumbleclient.jni.SWIGTYPE_p_CELTDecoder;
 import org.pcgod.mumbleclient.jni.SWIGTYPE_p_CELTMode;
 import org.pcgod.mumbleclient.jni.celt;
+
+import org.pcgod.mumbleclient.service.model.Channel;
+import org.pcgod.mumbleclient.service.model.User;
 
 import android.media.AudioFormat;
 import android.media.AudioManager;

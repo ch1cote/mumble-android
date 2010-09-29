@@ -1,4 +1,4 @@
-package org.pcgod.mumbleclient;
+package org.pcgod.mumbleclient.service;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -19,6 +19,9 @@ import javax.net.ssl.TrustManager;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.MessageLite;
+
+import org.pcgod.mumbleclient.service.model.User;
+import org.pcgod.mumbleclient.service.model.Channel;
 
 import net.sf.mumble.MumbleProto.Authenticate;
 import net.sf.mumble.MumbleProto.ChannelRemove;

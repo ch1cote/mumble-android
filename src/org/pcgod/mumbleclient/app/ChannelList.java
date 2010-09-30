@@ -2,18 +2,25 @@ package org.pcgod.mumbleclient.app;
 
 import java.util.List;
 
+import junit.framework.Assert;
+
 import org.pcgod.mumbleclient.service.model.Channel;
 import org.pcgod.mumbleclient.service.MumbleClient;
+import org.pcgod.mumbleclient.service.MumbleService;
+import org.pcgod.mumbleclient.service.MumbleServiceConnection;
 import org.pcgod.mumbleclient.R;
 
 import android.app.ListActivity;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.graphics.Typeface;
 import android.media.AudioManager;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -21,6 +28,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
+import android.widget.ListAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
 
@@ -30,7 +38,10 @@ import android.widget.TextView;
  * @author pcgod
  *
  */
-public class ChannelList extends ListActivity {
+public class ChannelList extends ConnectedListActivity {
+	
+	public static final String JOIN_CHANNEL = "join_channel";
+	
 	private class ChannelAdapter extends ArrayAdapter<Channel> {
 		public ChannelAdapter(final Context context,
 				final List<Channel> channels) {
@@ -48,15 +59,10 @@ public class ChannelList extends ListActivity {
 			final Channel c = getItem(position);
 			final TextView tv = (TextView) v.findViewById(android.R.id.text1);
 			tv.setText(c.name + " (" + c.userCount + ")");
-			if (c.id == ServerList.client.currentChannel) {
-				tv.setTypeface(Typeface.DEFAULT_BOLD);
-			} else {
-				tv.setTypeface(Typeface.DEFAULT);
-			}
 			return tv;
 		}
 	}
-
+	
 	private class ChannelBroadcastReceiver extends BroadcastReceiver {
 		@Override
 		public final void onReceive(final Context ctx, final Intent i) {
@@ -94,18 +100,12 @@ public class ChannelList extends ListActivity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.channel_list);
 		setVolumeControlStream(AudioManager.STREAM_VOICE_CALL);
-
-		if (ServerList.client == null) {
-			finish();
-			return;
-		}
-
-		if (!ServerList.client.isConnected()) {
-			finish();
-			return;
-		}
-
-		setListAdapter(new ChannelAdapter(this, ServerList.client.channelArray));
+		
+	}
+	
+	@Override
+	protected final void onServiceBound() {
+		setListAdapter(new ChannelAdapter(this, mService.getChannelList()));
 		updateList();
 	}
 
@@ -123,7 +123,7 @@ public class ChannelList extends ListActivity {
 	@Override
 	protected final void onPause() {
 		super.onPause();
-
+		
 		unregisterReceiver(bcReceiver);
 	}
 
@@ -140,6 +140,8 @@ public class ChannelList extends ListActivity {
 	}
 
 	void updateList() {
-		((BaseAdapter) getListAdapter()).notifyDataSetChanged();
+		ListAdapter adapter = getListAdapter();
+		if (adapter == null) return;
+		((BaseAdapter)adapter).notifyDataSetChanged();
 	}
 }

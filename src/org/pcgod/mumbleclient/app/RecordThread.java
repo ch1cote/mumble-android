@@ -6,6 +6,7 @@ import java.nio.ShortBuffer;
 import java.util.LinkedList;
 
 import org.pcgod.mumbleclient.service.MumbleClient;
+import org.pcgod.mumbleclient.service.MumbleService;
 import org.pcgod.mumbleclient.service.PacketDataStream;
 import org.pcgod.mumbleclient.jni.SWIGTYPE_p_CELTEncoder;
 import org.pcgod.mumbleclient.jni.SWIGTYPE_p_CELTMode;
@@ -13,9 +14,12 @@ import org.pcgod.mumbleclient.jni.SWIGTYPE_p_SpeexResamplerState;
 import org.pcgod.mumbleclient.jni.celt;
 import org.pcgod.mumbleclient.jni.celtConstants;
 
+import android.content.ComponentName;
+import android.content.ServiceConnection;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+import android.os.IBinder;
 import android.util.Log;
 
 /**
@@ -39,8 +43,11 @@ public class RecordThread implements Runnable {
 	private final short[] resampleBuffer = new short[MumbleClient.FRAME_SIZE];
 	private int seq;
 	private final SWIGTYPE_p_SpeexResamplerState srs;
+	private final MumbleService mService;
+	
+	public RecordThread(MumbleService service) {
+		mService = service;
 
-	public RecordThread() {
 		for (final int s : new int[] { 48000, 44100, 22050, 11025, 8000 }) {
 			bufferSize = AudioRecord.getMinBufferSize(s,
 					AudioFormat.CHANNEL_CONFIGURATION_MONO,
@@ -49,6 +56,7 @@ public class RecordThread implements Runnable {
 				recordingSampleRate = s;
 				break;
 			}
+			
 		}
 
 		if (bufferSize < 0) {
@@ -78,6 +86,8 @@ public class RecordThread implements Runnable {
 		} else {
 			srs = null;
 		}
+		
+		
 	}
 
 	public final boolean initialized() {
@@ -157,7 +167,7 @@ public class RecordThread implements Runnable {
 				final byte[] dst = new byte[pds.size() + 1];
 				tmpBuf.get(dst);
 				try {
-					ServerList.client.sendUdpTunnelMessage(dst);
+					mService.sendUdpTunnelMessage(dst);
 				} catch (final IOException e) {
 					e.printStackTrace();
 					running = false;

@@ -5,21 +5,18 @@ import java.nio.ByteBuffer;
 import java.nio.ShortBuffer;
 import java.util.LinkedList;
 
-import org.pcgod.mumbleclient.service.MumbleClient;
-import org.pcgod.mumbleclient.service.MumbleService;
-import org.pcgod.mumbleclient.service.PacketDataStream;
 import org.pcgod.mumbleclient.jni.SWIGTYPE_p_CELTEncoder;
 import org.pcgod.mumbleclient.jni.SWIGTYPE_p_CELTMode;
 import org.pcgod.mumbleclient.jni.SWIGTYPE_p_SpeexResamplerState;
 import org.pcgod.mumbleclient.jni.celt;
 import org.pcgod.mumbleclient.jni.celtConstants;
+import org.pcgod.mumbleclient.service.MumbleClient;
+import org.pcgod.mumbleclient.service.MumbleService;
+import org.pcgod.mumbleclient.service.PacketDataStream;
 
-import android.content.ComponentName;
-import android.content.ServiceConnection;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
-import android.os.IBinder;
 import android.util.Log;
 
 /**

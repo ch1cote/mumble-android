@@ -1,10 +1,7 @@
 package org.pcgod.mumbleclient.app;
 
-import junit.framework.Assert;
-
 import org.pcgod.mumbleclient.service.MumbleService;
 
-import android.app.Activity;
 import android.app.ListActivity;
 import android.content.ComponentName;
 import android.content.Intent;

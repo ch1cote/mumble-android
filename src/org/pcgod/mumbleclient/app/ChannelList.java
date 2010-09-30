@@ -3,7 +3,7 @@ package org.pcgod.mumbleclient.app;
 import java.util.List;
 
 import org.pcgod.mumbleclient.R;
-import org.pcgod.mumbleclient.service.MumbleClient;
+import org.pcgod.mumbleclient.service.MumbleConnection;
 import org.pcgod.mumbleclient.service.model.Channel;
 
 import android.content.BroadcastReceiver;
@@ -124,8 +124,8 @@ public class ChannelList extends ConnectedListActivity {
 
 		updateList();
 		final IntentFilter ifilter = new IntentFilter(
-				MumbleClient.INTENT_CHANNEL_LIST_UPDATE);
-		ifilter.addAction(MumbleClient.INTENT_USER_LIST_UPDATE);
+				MumbleConnection.INTENT_CHANNEL_LIST_UPDATE);
+		ifilter.addAction(MumbleConnection.INTENT_USER_LIST_UPDATE);
 		bcReceiver = new ChannelBroadcastReceiver();
 		registerReceiver(bcReceiver, ifilter);
 	}

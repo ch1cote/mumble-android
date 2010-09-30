@@ -10,7 +10,7 @@ import org.pcgod.mumbleclient.jni.SWIGTYPE_p_CELTMode;
 import org.pcgod.mumbleclient.jni.SWIGTYPE_p_SpeexResamplerState;
 import org.pcgod.mumbleclient.jni.celt;
 import org.pcgod.mumbleclient.jni.celtConstants;
-import org.pcgod.mumbleclient.service.MumbleClient;
+import org.pcgod.mumbleclient.service.MumbleConnection;
 import org.pcgod.mumbleclient.service.MumbleService;
 import org.pcgod.mumbleclient.service.PacketDataStream;
 
@@ -29,7 +29,7 @@ public class RecordThread implements Runnable {
 	private static final int AUDIO_QUALITY = 60000;
 	private static int frameSize;
 	private static int recordingSampleRate;
-	private static final int TARGET_SAMPLE_RATE = MumbleClient.SAMPLE_RATE;
+	private static final int TARGET_SAMPLE_RATE = MumbleConnection.SAMPLE_RATE;
 	private final AudioRecord ar;
 	private final short[] buffer;
 	private int bufferSize;
@@ -37,7 +37,7 @@ public class RecordThread implements Runnable {
 	private final SWIGTYPE_p_CELTMode cm;
 	private final int framesPerPacket = 6;
 	private final LinkedList<ShortBuffer> outputQueue = new LinkedList<ShortBuffer>();
-	private final short[] resampleBuffer = new short[MumbleClient.FRAME_SIZE];
+	private final short[] resampleBuffer = new short[MumbleConnection.FRAME_SIZE];
 	private int seq;
 	private final SWIGTYPE_p_SpeexResamplerState srs;
 	private final MumbleService mService;
@@ -70,8 +70,8 @@ public class RecordThread implements Runnable {
 				AudioFormat.ENCODING_PCM_16BIT, 64 * 1024);
 
 		buffer = new short[frameSize];
-		cm = celt.celt_mode_create(MumbleClient.SAMPLE_RATE,
-				MumbleClient.FRAME_SIZE);
+		cm = celt.celt_mode_create(MumbleConnection.SAMPLE_RATE,
+				MumbleConnection.FRAME_SIZE);
 		ce = celt.celt_encoder_create(cm, 1);
 		celt.celt_encoder_ctl(ce, celtConstants.CELT_SET_PREDICTION_REQUEST, 0);
 		celt.celt_encoder_ctl(ce, celtConstants.CELT_SET_VBR_RATE_REQUEST,
@@ -139,7 +139,7 @@ public class RecordThread implements Runnable {
 				final ByteBuffer tmpBuf = ByteBuffer.allocate(1024);
 
 				int flags = 0;
-				flags |= MumbleClient.UDPMESSAGETYPE_UDPVOICECELTALPHA << 5;
+				flags |= MumbleConnection.UDPMESSAGETYPE_UDPVOICECELTALPHA << 5;
 				tmpBuf.put((byte) flags);
 
 				final PacketDataStream pds = new PacketDataStream(tmpBuf

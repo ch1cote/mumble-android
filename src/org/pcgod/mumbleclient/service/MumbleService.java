@@ -31,7 +31,7 @@ public class MumbleService extends Service {
 		}
 	}
 	
-	MumbleClient mClient;
+	MumbleConnection mClient;
 	Thread mClientThread;
 	Thread mRecordThread;
 	
@@ -58,7 +58,7 @@ public class MumbleService extends Service {
 
 		if (mClientThread != null) mClientThread.interrupt();
 		
-		mClient = new MumbleClient(this, host, port, username, password);
+		mClient = new MumbleConnection(this, host, port, username, password);
 		mClientThread = new Thread(mClient, "net");
 		mClientThread.start();
 	}

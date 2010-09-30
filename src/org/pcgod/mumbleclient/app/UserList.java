@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.pcgod.mumbleclient.R;
-import org.pcgod.mumbleclient.service.MumbleClient;
+import org.pcgod.mumbleclient.service.MumbleConnection;
 import org.pcgod.mumbleclient.service.model.User;
 
 import android.content.BroadcastReceiver;
@@ -55,9 +55,9 @@ public class UserList extends ConnectedListActivity {
 	private class UserBroadcastReceiver extends BroadcastReceiver {
 		@Override
 		public final void onReceive(final Context ctx, final Intent i) {
-			if (MumbleClient.INTENT_USER_LIST_UPDATE.equals(i.getAction())) {
+			if (MumbleConnection.INTENT_USER_LIST_UPDATE.equals(i.getAction())) {
 				updateList();
-			} else if (MumbleClient.INTENT_CURRENT_CHANNEL_CHANGED.equals(i
+			} else if (MumbleConnection.INTENT_CURRENT_CHANNEL_CHANGED.equals(i
 					.getAction())) {
 				channelId = mService.getCurrentChannel();
 			}
@@ -159,8 +159,8 @@ public class UserList extends ConnectedListActivity {
 
 		speakButton.setChecked(false);
 		final IntentFilter ifilter = new IntentFilter(
-				MumbleClient.INTENT_USER_LIST_UPDATE);
-		ifilter.addAction(MumbleClient.INTENT_CURRENT_CHANNEL_CHANGED);
+				MumbleConnection.INTENT_USER_LIST_UPDATE);
+		ifilter.addAction(MumbleConnection.INTENT_CURRENT_CHANNEL_CHANGED);
 		bcReceiver = new UserBroadcastReceiver();
 		registerReceiver(bcReceiver, ifilter);
 	}

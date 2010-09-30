@@ -28,16 +28,16 @@ class AudioOutput implements Runnable {
 	private final Condition notEmpty = lock.newCondition();
 	private final ArrayList<AudioUser> mix = new ArrayList<AudioUser>();
 	private final ArrayList<User> del = new ArrayList<User>();
-	private final static int bufferSize = MumbleClient.FRAME_SIZE * 4;
+	private final static int bufferSize = MumbleConnection.FRAME_SIZE * 4;
 
 	AudioOutput() {
 		at = new AudioTrack(AudioManager.STREAM_VOICE_CALL,
-				MumbleClient.SAMPLE_RATE,
+				MumbleConnection.SAMPLE_RATE,
 				AudioFormat.CHANNEL_CONFIGURATION_MONO,
 				AudioFormat.ENCODING_PCM_16BIT, 32768, AudioTrack.MODE_STREAM);
 
-		celtMode = celt.celt_mode_create(MumbleClient.SAMPLE_RATE,
-				MumbleClient.FRAME_SIZE);
+		celtMode = celt.celt_mode_create(MumbleConnection.SAMPLE_RATE,
+				MumbleConnection.FRAME_SIZE);
 		celtDecoder = celt.celt_decoder_create(celtMode, 1);
 	}
 

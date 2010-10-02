@@ -51,7 +51,7 @@ class AudioUser {
 
 		jitterBuffer = Native.jitter_buffer_init(MumbleConnection.FRAME_SIZE);
 		// 0 = JITTER_BUFFER_SET_MARGIN
-		Native.jitter_buffer_ctl(jitterBuffer, 0, new int[] { 50 * MumbleClient.FRAME_SIZE});		
+		Native.jitter_buffer_ctl(jitterBuffer, 0, new int[] { 50 * MumbleConnection.FRAME_SIZE});		
 
 		at = new AudioTrack(AudioManager.STREAM_MUSIC,
 				MumbleConnection.SAMPLE_RATE,

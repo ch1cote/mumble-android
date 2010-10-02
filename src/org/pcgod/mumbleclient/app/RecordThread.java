@@ -34,7 +34,7 @@ public class RecordThread implements Runnable {
 	private final long celtMode;
 	private final int framesPerPacket = 6;
 	private final LinkedList<ByteBuffer> outputQueue = new LinkedList<ByteBuffer>();
-	private final short[] resampleBuffer = new short[MumbleClient.FRAME_SIZE];
+	private final short[] resampleBuffer = new short[MumbleConnection.FRAME_SIZE];
 	private int seq;
 	private final long speexResamplerState;
 	private final MumbleService mService;

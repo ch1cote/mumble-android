@@ -1,0 +1,5 @@
+set solib-search-path /home/wace/workspaces/android/mumble/obj/local/armeabi
+directory /home/wace/SDKs/android-ndk-r4b/build/platforms/android-8/arch-arm/usr/include
+directory /home/wace/workspaces/android/mumble/jni/new
+directory /home/wace/workspaces/android/mumble/jni/new
+directory /home/wace/workspaces/android/mumble/jni/new

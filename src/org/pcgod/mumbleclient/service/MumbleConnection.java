@@ -29,6 +29,7 @@ import org.pcgod.mumbleclient.service.MumbleConnectionHost.ConnectionState;
 import org.pcgod.mumbleclient.service.model.Channel;
 import org.pcgod.mumbleclient.service.model.Message;
 import org.pcgod.mumbleclient.service.model.User;
+import org.pcgod.mumbleclient.service.model.Message.Direction;
 
 import android.util.Log;
 
@@ -170,6 +171,7 @@ public class MumbleConnection implements Runnable {
 		msg.timestamp = System.currentTimeMillis();
 		msg.message = message;
 		msg.channel = c;
+		msg.direction = Direction.Sent;
 		connectionHost.messageSent(msg);
 	}
 
@@ -323,7 +325,9 @@ public class MumbleConnection implements Runnable {
 		msg.timestamp = System.currentTimeMillis();
 		msg.message = ts.getMessage();
 		msg.actor = u;
-
+		msg.direction = Direction.Received;
+		msg.channelIds = ts.getChannelIdCount();
+		msg.treeIds = ts.getTreeIdCount();
 		connectionHost.messageReceived(msg);
 	}
 

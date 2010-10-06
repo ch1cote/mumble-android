@@ -176,7 +176,10 @@ public class ChannelList extends ConnectedListActivity {
 	protected final void onPause() {
 		super.onPause();
 		
-		unregisterReceiver(bcReceiver);
+		if (bcReceiver != null) { 
+			unregisterReceiver(bcReceiver);
+			bcReceiver = null;
+		}
 		
 		if (mProgressDialog != null) {
             mProgressDialog.dismiss();

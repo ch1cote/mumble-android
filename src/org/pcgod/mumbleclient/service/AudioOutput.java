@@ -1,6 +1,5 @@
 package org.pcgod.mumbleclient.service;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -10,11 +9,6 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import org.pcgod.mumbleclient.jni.Native;
 import org.pcgod.mumbleclient.service.model.User;
-
-import android.media.AudioFormat;
-import android.media.AudioManager;
-import android.media.AudioTrack;
-import android.util.Log;
 
 class AudioOutput implements Runnable {
 	static long celtDecoder;

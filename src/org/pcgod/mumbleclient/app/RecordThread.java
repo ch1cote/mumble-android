@@ -2,7 +2,6 @@ package org.pcgod.mumbleclient.app;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ShortBuffer;
 import java.util.LinkedList;
 
 import org.pcgod.mumbleclient.jni.Native;

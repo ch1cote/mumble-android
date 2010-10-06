@@ -5,7 +5,6 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -33,7 +32,6 @@ import org.pcgod.mumbleclient.service.model.Message.Direction;
 
 import android.util.Log;
 
-import com.google.protobuf.ByteString;
 import com.google.protobuf.MessageLite;
 
 /**

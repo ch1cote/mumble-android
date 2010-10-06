@@ -25,12 +25,16 @@ public class ConnectedListActivity extends ListActivity {
 	protected MumbleService mService;
 
 	@Override
-	protected void onCreate(Bundle savedInstanceState) {
-		// TODO Auto-generated method stub
-		super.onCreate(savedInstanceState);
-		
-		Intent intent = new Intent(this, MumbleService.class);
-		bindService(intent, mServiceConn, BIND_AUTO_CREATE);
+	protected void onPause() {
+	    super.onPause();
+	    unbindService(mServiceConn);
+	}
+	
+	@Override
+	protected void onResume() {
+	    super.onResume();
+        Intent intent = new Intent(this, MumbleService.class);
+        bindService(intent, mServiceConn, BIND_AUTO_CREATE);
 	}
 	
 	protected void onServiceBound() { }

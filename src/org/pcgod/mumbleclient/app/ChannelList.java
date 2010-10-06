@@ -2,16 +2,23 @@ package org.pcgod.mumbleclient.app;
 
 import java.util.List;
 
+import junit.framework.Assert;
+
 import org.pcgod.mumbleclient.R;
 import org.pcgod.mumbleclient.service.MumbleService;
 import org.pcgod.mumbleclient.service.model.Channel;
 
+import android.app.AlertDialog;
+import android.app.ProgressDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.DialogInterface.OnClickListener;
 import android.media.AudioManager;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -57,7 +64,36 @@ public class ChannelList extends ConnectedListActivity {
 	private class ChannelBroadcastReceiver extends BroadcastReceiver {
 		@Override
 		public final void onReceive(final Context ctx, final Intent i) {
-			updateList();
+		    if (i.getAction().equals(MumbleService.INTENT_CONNECTION_STATE_CHANGED)) {
+		        
+	            switch (mService.getConnectionState()) {
+	            case Connecting:
+	                mProgressDialog = ProgressDialog.show(ChannelList.this, "Connecting", "Connecting to Mumble server", true);
+                    break;
+	            case Connected:
+	                if (mProgressDialog != null) {
+	                    mProgressDialog.dismiss();
+	                    mProgressDialog = null;
+	                }
+	                setListAdapter(new ChannelAdapter(ChannelList.this, mService.getChannelList()));
+	                updateList();
+                    break;
+	            case Disconnected:
+	            case Disconnecting:
+	                if (mDisconnectDialog != null) {
+	                    mDisconnectDialog.dismiss();
+	                    mDisconnectDialog = null;
+	                }
+	                
+	                finish();
+	                break;
+	            default:
+	                Assert.fail("Unknown connection state");
+	            }
+	            
+		    } else {
+		        updateList();
+		    }
 		}
 	}
 
@@ -65,6 +101,8 @@ public class ChannelList extends ConnectedListActivity {
 	private static final int MENU_CHAT = Menu.FIRST;
 
 	private ChannelBroadcastReceiver bcReceiver;
+	private ProgressDialog mProgressDialog;
+	private AlertDialog mDisconnectDialog;
 
 	@Override
 	public final boolean onCreateOptionsMenu(final Menu menu) {
@@ -91,13 +129,36 @@ public class ChannelList extends ConnectedListActivity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.channel_list);
 		setVolumeControlStream(AudioManager.STREAM_VOICE_CALL);
-		
 	}
 	
+    /**
+     * Signals that the service has been bound and is available for use.
+     */
 	@Override
 	protected final void onServiceBound() {
-		setListAdapter(new ChannelAdapter(this, mService.getChannelList()));
-		updateList();
+	    
+	    switch (mService.getConnectionState()) {
+	    case Connecting:
+            mProgressDialog = ProgressDialog.show(this, "Connecting", "Connecting to Mumble server", true);
+            break;
+	    case Connected:
+            setListAdapter(new ChannelAdapter(this, mService.getChannelList()));
+            updateList();
+            break;
+	    case Disconnected:
+	    case Disconnecting:
+	        finish();
+            break;
+	    default:
+	        Assert.fail("Unknown connection state");
+	    }
+	    
+        final IntentFilter ifilter = new IntentFilter();
+        ifilter.addAction(MumbleService.INTENT_CHANNEL_LIST_UPDATE);
+        ifilter.addAction(MumbleService.INTENT_USER_LIST_UPDATE);
+        ifilter.addAction(MumbleService.INTENT_CONNECTION_STATE_CHANGED);
+        bcReceiver = new ChannelBroadcastReceiver();
+        registerReceiver(bcReceiver, ifilter);
 	}
 
 	@Override
@@ -116,20 +177,45 @@ public class ChannelList extends ConnectedListActivity {
 		super.onPause();
 		
 		unregisterReceiver(bcReceiver);
+		
+		if (mProgressDialog != null) {
+            mProgressDialog.dismiss();
+            mProgressDialog = null;
+		}
+		
+		if (mDisconnectDialog != null) {
+		    mDisconnectDialog.dismiss();
+		    mDisconnectDialog = null;
+		}
 	}
 
 	@Override
 	protected final void onResume() {
 		super.onResume();
-
-		updateList();
-		final IntentFilter ifilter = new IntentFilter(
-				MumbleService.INTENT_CHANNEL_LIST_UPDATE);
-		ifilter.addAction(MumbleService.INTENT_USER_LIST_UPDATE);
-		bcReceiver = new ChannelBroadcastReceiver();
-		registerReceiver(bcReceiver, ifilter);
 	}
+	
+	@Override
+	public boolean onKeyDown(int keyCode, KeyEvent event)  {
+	    if (keyCode == KeyEvent.KEYCODE_BACK && event.getRepeatCount() == 0) {
+	        AlertDialog.Builder b = new AlertDialog.Builder(this);
+	        b.setIcon(android.R.drawable.ic_dialog_alert);
+	        b.setTitle("Disconnect");
+	        b.setMessage("Are you sure you want to disconnect from Mumble?");
+	        b.setPositiveButton(android.R.string.yes, new OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    mService.disconnect();
+                }
+            });
+	        b.setNegativeButton(android.R.string.no, null);
+	        mDisconnectDialog = b.show();
+	        
+	        return true;
+	    }
 
+	    return super.onKeyDown(keyCode, event);
+	}
+	
 	void updateList() {
 		ListAdapter adapter = getListAdapter();
 		if (adapter == null) return;

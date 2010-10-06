@@ -135,6 +135,8 @@ public class MumbleConnection implements Runnable {
 			
 			handleProtocol(socket_);
 			
+			socket_.close();
+			
 		} catch (final NoSuchAlgorithmException e) {
 			e.printStackTrace();
 		} catch (final KeyManagementException e) {
@@ -211,6 +213,10 @@ public class MumbleConnection implements Runnable {
 			connectionHost.setConnectionState(ConnectionState.Disconnecting);
 			stateLock.notifyAll();
 		}
+	}
+	
+	public final boolean isConnectionAlive() {
+	    return !disconnecting;
 	}
 
 	private Channel findChannel(final int id) {

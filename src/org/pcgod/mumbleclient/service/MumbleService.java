@@ -174,19 +174,35 @@ public class MumbleService extends Service {
 		return false;
 	}
 
+	// This is the old onStart method that will be called on the pre-2.0
+	// platform.  On 2.0 or later we override onStartCommand() so this
+	// method will not be called.
+	@Override
+	public void onStart(Intent intent, int startId) {
+		handleCommand(intent);
+	}
+
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
-        // When using START_STICKY the onStartCommand can be called with
-        // null intent after the whole service process has been killed.
-        // Such scenario doesn't make sense for the service process so
-        // returning START_NOT_STICKY for now.
-        //
-        // Leaving the null check in though just in case.
-        //
-        // TODO: Figure out the correct start type.
-        if (intent == null) return START_NOT_STICKY;
-        
-        String host = intent.getStringExtra(EXTRA_HOST);
+		// When using START_STICKY the onStartCommand can be called with
+		// null intent after the whole service process has been killed.
+		// Such scenario doesn't make sense for the service process so
+		// returning START_NOT_STICKY for now.
+		//
+		// Leaving the null check in though just in case.
+		//
+		// TODO: Figure out the correct start type.
+		if (intent == null) return START_NOT_STICKY;
+
+		handleCommand(intent);
+
+		return START_NOT_STICKY;
+	}
+
+	public void handleCommand(Intent intent)
+	{
+
+		String host = intent.getStringExtra(EXTRA_HOST);
 		int port = intent.getIntExtra(EXTRA_PORT, -1);
 		String username = intent.getStringExtra(EXTRA_USERNAME);
 		String password = intent.getStringExtra(EXTRA_PASSWORD);
@@ -194,8 +210,8 @@ public class MumbleService extends Service {
 		if (mClient != null &&
 			mClient.isSameServer(host, port, username, password) &&
 			isConnected()) {
-			return START_NOT_STICKY;
-		}
+			return;
+		} 
 
 		if (mClientThread != null)
 			mClientThread.interrupt();
@@ -203,7 +219,6 @@ public class MumbleService extends Service {
 		mClient = new MumbleConnection(connectionHost, host, port, username, password);
 		mClientThread = new Thread(mClient, "net");
 		mClientThread.start();
-		return START_NOT_STICKY;
 	}
 
 	public boolean isConnected() {

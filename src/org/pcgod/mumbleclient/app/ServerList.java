@@ -81,7 +81,6 @@ public class ServerList extends ConnectedListActivity {
 					.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PORT));
 			final String serverUsername = cursor.getString(cursor
 					.getColumnIndexOrThrow(DbAdapter.SERVER_COL_USERNAME));
-
 			if ("".equals(serverName)) {
 				nameText.setText(serverHost + ":" + serverPort);
 				userText.setText(serverUsername);
@@ -289,7 +288,7 @@ public class ServerList extends ConnectedListActivity {
 		connectionIntent.putExtra(MumbleService.EXTRA_USERNAME, username);
 		connectionIntent.putExtra(MumbleService.EXTRA_PASSWORD, password);
 		startService(connectionIntent);
-		// mService.setServer(host, port, username, password);
+		//mService.setServer(host, port, username, password);
 
 		final Intent i = new Intent(this, ChannelList.class);
 		startActivityForResult(i, ACTIVITY_CHANNEL_LIST);

@@ -17,9 +17,7 @@ import android.util.Log;
 
 /**
  * Thread responsible for recording voice and sending it over to server.
- * 
  * @author pcgod
- * 
  */
 public class RecordThread implements Runnable {
 	private static final int AUDIO_QUALITY = 60000;
@@ -38,10 +36,12 @@ public class RecordThread implements Runnable {
 	private final long speexResamplerState;
 	private final MumbleService mService;
 
-	public RecordThread(final MumbleService service) {
+	public RecordThread(MumbleService service) {
 		mService = service;
+
 		for (final int s : new int[] { 48000, 44100, 22050, 11025, 8000 }) {
-			bufferSize = AudioRecord.getMinBufferSize(s, AudioFormat.CHANNEL_CONFIGURATION_MONO,
+			bufferSize = AudioRecord.getMinBufferSize(s,
+					AudioFormat.CHANNEL_CONFIGURATION_MONO,
 					AudioFormat.ENCODING_PCM_16BIT);
 			if (bufferSize > 0) {
 				recordingSampleRate = s;

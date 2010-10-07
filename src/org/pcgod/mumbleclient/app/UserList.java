@@ -134,7 +134,7 @@ public class UserList extends ConnectedListActivity {
 
 		setListAdapter(new UserAdapter(this, userList));
 	}
-	
+
 	@Override
 	protected void onServiceBound() {
 		updateList();

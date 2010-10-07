@@ -49,7 +49,7 @@ class AudioUser {
 
 		jitterBuffer = Native.jitter_buffer_init(MumbleConnection.FRAME_SIZE);
 		// 0 = JITTER_BUFFER_SET_MARGIN
-		Native.jitter_buffer_ctl(jitterBuffer, 0, new int[] { 50 * MumbleConnection.FRAME_SIZE});		
+		Native.jitter_buffer_ctl(jitterBuffer, 0, new int[] { 50 * MumbleConnection.FRAME_SIZE });
 
 		at = new AudioTrack(AudioManager.STREAM_MUSIC,
 				MumbleConnection.SAMPLE_RATE,
@@ -85,8 +85,8 @@ class AudioUser {
 			final JitterBufferPacket jbp = new JitterBufferPacket();
 			jbp.flags = flags;
 			jbp.data = packet;
-			jbp.span = MumbleClient.FRAME_SIZE * frames;
-			jbp.timestamp = MumbleClient.FRAME_SIZE * iSeq;
+			jbp.span = MumbleConnection.FRAME_SIZE * frames;
+			jbp.timestamp = MumbleConnection.FRAME_SIZE * iSeq;
 			*/
 
 			/*
@@ -96,8 +96,8 @@ class AudioUser {
 			packet.get(tmp);
 			njbp.data = tmp;
 			njbp.len = tmp.length;
-			njbp.span = MumbleClient.FRAME_SIZE * frames;
-			njbp.timestamp = MumbleClient.FRAME_SIZE * iSeq;
+			njbp.span = MumbleConnection.FRAME_SIZE * frames;
+			njbp.timestamp = MumbleConnection.FRAME_SIZE * iSeq;
 			*/
 
 			byte[] tmp = new byte[256];
@@ -171,7 +171,7 @@ class AudioUser {
 					/*
 					final JitterBufferPacket jbp;
 					synchronized (jb) {
-						jbp = jb.get(MumbleClient.FRAME_SIZE);
+						jbp = jb.get(MumbleConnection.FRAME_SIZE);
 					}
 					*/
 					final Native.JitterBufferPacket jbp = new Native.JitterBufferPacket();
@@ -255,7 +255,7 @@ class AudioUser {
 
 					at.write(pOut, 0, MumbleConnection.FRAME_SIZE);
 					//at.flush();
-//					System.arraycopy(pOut, 0, pfBuffer, bufferFilled, MumbleClient.FRAME_SIZE);
+//					System.arraycopy(pOut, 0, pfBuffer, bufferFilled, MumbleConnection.FRAME_SIZE);
 					final boolean update = true;
 //	                if (p) {
 //	                    float &fPowerMax = p->fPowerMax;
@@ -296,11 +296,11 @@ class AudioUser {
 				}
 
 //				if (!nextAlive) {
-//					for (int i = 0; i < MumbleClient.FRAME_SIZE; ++i) {
+//					for (int i = 0; i < MumbleConnection.FRAME_SIZE; ++i) {
 //						pOut[i] *= fadeOut[i];
 //					}
 //				} else if (timestamp == 0) {
-//					for (int i = 0; i < MumbleClient.FRAME_SIZE; ++i) {
+//					for (int i = 0; i < MumbleConnection.FRAME_SIZE; ++i) {
 //						pOut[i] *= fadeIn[i];
 //					}
 //				}

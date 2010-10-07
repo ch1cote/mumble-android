@@ -82,8 +82,9 @@ public class MumbleConnection implements Runnable {
 	private Thread readingThread;
 	private Object stateLock = new Object();
 
-	public MumbleConnection(final MumbleConnectionHost connectionHost_, final String host_,
-			final int port_, final String username_, final String password_) {
+	public MumbleConnection(final MumbleConnectionHost connectionHost_,
+			final String host_, final int port_,
+			final String username_, final String password_) {
 		connectionHost = connectionHost_;
 		host = host_;
 		port = port_;
@@ -117,9 +118,9 @@ public class MumbleConnection implements Runnable {
 			SSLSocket socket_;
 
 			synchronized (stateLock) {
-				final SSLContext ctx = SSLContext.getInstance("TLS");
-				ctx.init(null, new TrustManager[] { new LocalSSLTrustManager() }, null);
-				final SSLSocketFactory factory = ctx.getSocketFactory();
+				final SSLContext sslCtx = SSLContext.getInstance("TLS");
+				sslCtx.init(null, new TrustManager[] { new LocalSSLTrustManager() }, null);
+				final SSLSocketFactory factory = sslCtx.getSocketFactory();
 				socket_ = (SSLSocket) factory.createSocket(host, port);
 				socket_.setUseClientMode(true);
 				socket_.setEnabledProtocols(new String[] { "TLSv1" });

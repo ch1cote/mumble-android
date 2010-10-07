@@ -203,11 +203,11 @@ public class ChannelList extends ConnectedListActivity {
 			b.setTitle("Disconnect");
 			b.setMessage("Are you sure you want to disconnect from Mumble?");
 			b.setPositiveButton(android.R.string.yes, new OnClickListener() {
-				@Override
-				public void onClick(DialogInterface dialog, int which) {
-					mService.disconnect();
-				}
-			});
+									@Override
+									public void onClick(DialogInterface dialog, int which) {
+										mService.disconnect();
+									}
+								});
 			b.setNegativeButton(android.R.string.no, null);
 			mDisconnectDialog = b.show();
 

@@ -44,6 +44,5 @@ public class ConnectedListActivity extends ListActivity {
 		bindService(intent, mServiceConn, BIND_AUTO_CREATE);
 	}
 
-	protected void onServiceBound() {
-	}
+	protected void onServiceBound() { }
 }

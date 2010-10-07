@@ -26,16 +26,16 @@ class AudioOutput implements Runnable {
 
 	AudioOutput() {
 /*		double minbuffer = Math.max(AudioTrack
-				.getMinBufferSize(MumbleClient.SAMPLE_RATE,
+				.getMinBufferSize(MumbleConnection.SAMPLE_RATE,
 						AudioFormat.CHANNEL_CONFIGURATION_MONO,
 						AudioFormat.ENCODING_PCM_16BIT), bufferSize);
 		Log.i("mumbleclient", "buffer size: " + minbuffer);
-		bufferSize = (int) (Math.ceil(minbuffer / MumbleClient.FRAME_SIZE) * MumbleClient.FRAME_SIZE);
+		bufferSize = (int) (Math.ceil(minbuffer / MumbleConnection.FRAME_SIZE) * MumbleConnection.FRAME_SIZE);
 		Log.i("mumbleclient", "new buffer size: " + bufferSize);
 */
 /*
 		at = new AudioTrack(AudioManager.STREAM_MUSIC,
-				MumbleClient.SAMPLE_RATE,
+				MumbleConnection.SAMPLE_RATE,
 				AudioFormat.CHANNEL_CONFIGURATION_MONO,
 				AudioFormat.ENCODING_PCM_16BIT, bufferSize * 20,
 				AudioTrack.MODE_STREAM);

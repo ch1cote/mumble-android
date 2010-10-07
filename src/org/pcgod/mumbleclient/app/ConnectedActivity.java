@@ -24,7 +24,7 @@ public class ConnectedActivity extends Activity {
 		}
 
 		public void onServiceConnected(ComponentName className, IBinder binder) {
-			mService = ((MumbleService.LocalBinder) binder).getService();
+			mService = ((MumbleService.LocalBinder)binder).getService();
 			Log.i("Mumble", "mService set");
 			onServiceBound();
 		}
@@ -44,6 +44,5 @@ public class ConnectedActivity extends Activity {
 		bindService(intent, mServiceConn, BIND_AUTO_CREATE);
 	}
 
-	protected void onServiceBound() {
-	}
+	protected void onServiceBound() { }
 }

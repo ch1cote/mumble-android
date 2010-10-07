@@ -60,6 +60,7 @@ public class MumbleService extends Service {
 	private MumbleConnection mClient;
 	private Thread mClientThread;
 	private Thread mRecordThread;
+
 	private Notification mNotification;
 	private boolean mHasConnections;
 
@@ -95,6 +96,7 @@ public class MumbleService extends Service {
 			Bundle b = new Bundle();
 			b.putSerializable(EXTRA_CONNECTION_STATE, state);
 			sendBroadcast(INTENT_CONNECTION_STATE_CHANGED);
+
 			Log.i(Globals.LOG_TAG, "MumbleService: Connection state changed to " + state.toString());
 
 			// Handle foreground stuff
@@ -138,6 +140,7 @@ public class MumbleService extends Service {
 	@Override
 	public void onCreate() {
 		super.onCreate();
+
 		Log.i(Globals.LOG_TAG, "MumbleService: Created");
 		state = ConnectionState.Disconnected;
 	}
@@ -151,6 +154,7 @@ public class MumbleService extends Service {
 	@Override
 	public IBinder onBind(Intent intent) {
 		mHasConnections = true;
+
 		Log.i(Globals.LOG_TAG, "MumbleService: Bound");
 		return mBinder;
 	}
@@ -177,8 +181,9 @@ public class MumbleService extends Service {
 		String username = intent.getStringExtra(EXTRA_USERNAME);
 		String password = intent.getStringExtra(EXTRA_PASSWORD);
 
-		if (mClient != null && mClient.isSameServer(host, port, username, password)
-				&& isConnected()) {
+		if (mClient != null &&
+			mClient.isSameServer(host, port, username, password) &&
+			isConnected()) {
 			return START_STICKY;
 		}
 
@@ -230,11 +235,11 @@ public class MumbleService extends Service {
 	public List<Channel> getChannelList() {
 		assertConnected();
 
-		return Collections.unmodifiableList(mClient.channelArray);
+		return Collections.unmodifiableList( mClient.channelArray );
 	}
 
 	public List<Message> getMessageList() {
-		return Collections.unmodifiableList(messages);
+		return Collections.unmodifiableList( messages );
 	}
 
 	public void sendUdpTunnelMessage(byte[] buffer) throws IOException {

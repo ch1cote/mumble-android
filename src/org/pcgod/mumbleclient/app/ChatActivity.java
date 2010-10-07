@@ -123,7 +123,8 @@ public class ChatActivity extends ConnectedActivity {
 			addMessage(m);
 		}
 
-		final IntentFilter ifilter = new IntentFilter(MumbleService.INTENT_CHAT_TEXT_UPDATE);
+		final IntentFilter ifilter = new IntentFilter(
+				MumbleService.INTENT_CHAT_TEXT_UPDATE);
 		bcReceiver = new ChatBroadcastReceiver();
 		registerReceiver(bcReceiver, ifilter);
 	}
@@ -136,7 +137,8 @@ public class ChatActivity extends ConnectedActivity {
 	void addMessage(Message msg) {
 		StringBuilder sb = new StringBuilder();
 		sb.append("[");
-		sb.append(DateUtils.formatDateTime(this, msg.timestamp, DateUtils.FORMAT_SHOW_TIME));
+		sb.append(DateUtils.formatDateTime(this, msg.timestamp,
+				DateUtils.FORMAT_SHOW_TIME));
 		sb.append("]");
 
 		if (msg.direction == Direction.Sent) {

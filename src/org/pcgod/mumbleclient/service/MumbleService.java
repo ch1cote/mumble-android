@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -335,10 +334,10 @@ public class MumbleService extends Service {
 		mClient.disconnect();
 	}
 
-	public int getCurrentChannel() {
+	public Channel getCurrentChannel() {
 		assertConnected();
 
-		return mClient.currentChannel.id;
+		return mClient.currentChannel;
 	}
 
 	public void joinChannel(int channelId) {
@@ -351,10 +350,10 @@ public class MumbleService extends Service {
 		return mClient.canSpeak;
 	}
 
-	public Collection<User> getUsers() {
+	public List<User> getUserList() {
 		assertConnected();
 
-		return Collections.unmodifiableCollection(users);
+		return Collections.unmodifiableList(users);
 	}
 
 	public List<Channel> getChannelList() {

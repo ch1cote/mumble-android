@@ -7,7 +7,6 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -419,9 +418,10 @@ public class MumbleConnection implements Runnable {
 						if (us.hasSuppress()) {
 							canSpeak = !us.getSuppress();
 						}
-						connectionHost.userUpdated(user);
 					}
 				}
+				
+				connectionHost.userUpdated(user);
 				break;
 			}
 			// New user

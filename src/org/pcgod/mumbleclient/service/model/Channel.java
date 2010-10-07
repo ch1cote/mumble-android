@@ -4,7 +4,7 @@ import java.io.Serializable;
 
 public class Channel implements Serializable {
 	private static final long serialVersionUID = 1L;
-	
+
 	public int id;
 	public String name;
 	public int userCount;
@@ -24,7 +24,6 @@ public class Channel implements Serializable {
 
 	@Override
 	public final String toString() {
-		return "Channel [id=" + id + ", name=" + name + ", userCount="
-				+ userCount + "]";
+		return "Channel [id=" + id + ", name=" + name + ", userCount=" + userCount + "]";
 	}
 }

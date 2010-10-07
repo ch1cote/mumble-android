@@ -28,11 +28,11 @@ public class ChatActivity extends ConnectedActivity {
 	private class ChatBroadcastReceiver extends BroadcastReceiver {
 		@Override
 		public final void onReceive(final Context ctx, final Intent i) {
-			Message msg = (Message)i.getSerializableExtra(MumbleService.EXTRA_MESSAGE);
+			Message msg = (Message) i.getSerializableExtra(MumbleService.EXTRA_MESSAGE);
 			addMessage(msg);
 		}
 	}
-	
+
 	TextView chatText;
 	EditText chatTextEdit;
 
@@ -59,25 +59,23 @@ public class ChatActivity extends ConnectedActivity {
 			return true;
 		}
 	};
-	
+
 	private OnClickListener sendOnClickEvent = new OnClickListener() {
 		public void onClick(final View v) {
 			sendMessage(chatTextEdit);
 		}
 	};
-	
+
 	private ChatBroadcastReceiver bcReceiver;
 
 	@Override
 	public final boolean onCreateOptionsMenu(final Menu menu) {
-		menu.add(0, MENU_CLEAR, 0, "Clear").setIcon(
-				android.R.drawable.ic_menu_delete);
+		menu.add(0, MENU_CLEAR, 0, "Clear").setIcon(android.R.drawable.ic_menu_delete);
 		return true;
 	}
 
 	@Override
-	public final boolean onMenuItemSelected(final int featureId,
-			final MenuItem item) {
+	public final boolean onMenuItemSelected(final int featureId, final MenuItem item) {
 		switch (item.getItemId()) {
 		case MENU_CLEAR:
 			chatText.setText("");
@@ -115,18 +113,17 @@ public class ChatActivity extends ConnectedActivity {
 		super.onResume();
 
 	}
-	
+
 	@Override
 	protected void onServiceBound() {
 		super.onServiceBound();
-		
+
 		List<Message> messages = mService.getMessageList();
 		for (Message m : messages) {
 			addMessage(m);
 		}
-		
-		final IntentFilter ifilter = new IntentFilter(
-				MumbleService.INTENT_CHAT_TEXT_UPDATE);
+
+		final IntentFilter ifilter = new IntentFilter(MumbleService.INTENT_CHAT_TEXT_UPDATE);
 		bcReceiver = new ChatBroadcastReceiver();
 		registerReceiver(bcReceiver, ifilter);
 	}
@@ -135,42 +132,49 @@ public class ChatActivity extends ConnectedActivity {
 		mService.sendChannelTextMessage(v.getText().toString());
 		v.setText("");
 	}
-	
+
 	void addMessage(Message msg) {
 		StringBuilder sb = new StringBuilder();
 		sb.append("[");
-		sb.append(DateUtils.formatDateTime(this, msg.timestamp,
-				DateUtils.FORMAT_SHOW_TIME));
+		sb.append(DateUtils.formatDateTime(this, msg.timestamp, DateUtils.FORMAT_SHOW_TIME));
 		sb.append("]");
 
 		if (msg.direction == Direction.Sent) {
 			sb.append("To ");
 			sb.append(msg.channel.name);
 		} else {
-			if (msg.channelIds > 0) { sb.append("(C) "); }
-			if (msg.treeIds > 0) { sb.append("(T) "); }
-			
-			if (msg.actor != null) { sb.append(msg.actor.name); }
-			else { sb.append("Server"); }
+			if (msg.channelIds > 0) {
+				sb.append("(C) ");
+			}
+			if (msg.treeIds > 0) {
+				sb.append("(T) ");
+			}
+
+			if (msg.actor != null) {
+				sb.append(msg.actor.name);
+			} else {
+				sb.append("Server");
+			}
 		}
 		sb.append(": ");
 		sb.append(msg.message);
 		sb.append("\n");
-		chatText.append(sb.toString());		
+		chatText.append(sb.toString());
 	}
 
 	void updateText() {
 		chatText.beginBatchEdit();
 		chatText.setText("");
-//		for (final String s : ServerList.client.chatList) {
-//			chatText.append(s);
-//		}
-//		chatText.endBatchEdit();
-//		chatText.post(new Runnable() {
-//			@Override
-//			public void run() {
-//				chatText.scrollTo(0, chatText.getHeight());
-//			}
-//		});
+		chatText.endBatchEdit();
+		// for (final String s : ServerList.client.chatList) {
+		// chatText.append(s);
+		// }
+		// chatText.endBatchEdit();
+		// chatText.post(new Runnable() {
+		// @Override
+		// public void run() {
+		// chatText.scrollTo(0, chatText.getHeight());
+		// }
+		// });
 	}
 }

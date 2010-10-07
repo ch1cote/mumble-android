@@ -15,16 +15,16 @@ import android.util.Log;
  * Note: Remember to consider ConnectedListActivity when modifying this class.
  * 
  * @author Rantanen
- *
+ * 
  */
 public class ConnectedListActivity extends ListActivity {
 	ServiceConnection mServiceConn = new ServiceConnection() {
 		public void onServiceDisconnected(ComponentName arg0) {
 			mService = null;
 		}
-		
+
 		public void onServiceConnected(ComponentName className, IBinder binder) {
-			mService = ((MumbleService.LocalBinder)binder).getService();
+			mService = ((MumbleService.LocalBinder) binder).getService();
 			Log.i("Mumble", "mService set");
 			onServiceBound();
 		}
@@ -33,16 +33,17 @@ public class ConnectedListActivity extends ListActivity {
 
 	@Override
 	protected void onPause() {
-	    super.onPause();
-	    unbindService(mServiceConn);
+		super.onPause();
+		unbindService(mServiceConn);
 	}
-	
+
 	@Override
 	protected void onResume() {
-	    super.onResume();
-        Intent intent = new Intent(this, MumbleService.class);
-        bindService(intent, mServiceConn, BIND_AUTO_CREATE);
+		super.onResume();
+		Intent intent = new Intent(this, MumbleService.class);
+		bindService(intent, mServiceConn, BIND_AUTO_CREATE);
 	}
-	
-	protected void onServiceBound() { }
+
+	protected void onServiceBound() {
+	}
 }

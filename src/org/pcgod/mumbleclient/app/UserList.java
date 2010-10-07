@@ -28,7 +28,7 @@ import android.widget.ToggleButton;
 /**
  * Shows users on a channel on the connected server.
  *  
- * @author wace
+ * @author pcgod
  *
  */
 public class UserList extends ConnectedListActivity {

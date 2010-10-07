@@ -12,30 +12,30 @@ public class MumbleServiceConnection {
 		public void onServiceDisconnected(ComponentName arg0) {
 			mService = null;
 		}
-		
+
 		public void onServiceConnected(ComponentName className, IBinder binder) {
-			mService = ((MumbleService.LocalBinder)binder).getService();
+			mService = ((MumbleService.LocalBinder) binder).getService();
 		}
 	};
 	protected MumbleService mService;
 	protected final Context ctx;
-	
+
 	public MumbleServiceConnection(final Context ctx) {
 		this.ctx = ctx;
 	}
-	
+
 	public void bind() {
 		Assert.assertNull(mService);
 
 		Intent intent = new Intent(ctx, MumbleService.class);
 		ctx.bindService(intent, mServiceConn, Context.BIND_AUTO_CREATE);
 	}
-	
+
 	public MumbleService getService() {
 		Assert.assertNotNull(mService);
 		return mService;
 	}
-	
+
 	public void release() {
 		ctx.unbindService(mServiceConn);
 	}

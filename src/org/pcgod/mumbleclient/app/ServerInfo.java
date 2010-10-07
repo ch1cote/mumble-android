@@ -67,8 +67,7 @@ public class ServerInfo extends Activity {
 			Cursor c = db.fetchServer(serverId);
 			nameEdit.setText(c.getString(c.getColumnIndexOrThrow(DbAdapter.SERVER_COL_NAME)));
 			hostEdit.setText(c.getString(c.getColumnIndexOrThrow(DbAdapter.SERVER_COL_HOST)));
-			portEdit.setText(Integer.toString(
-					c.getInt(c.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PORT))));
+			portEdit.setText(Integer.toString(c.getInt(c.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PORT))));
 			usernameEdit.setText(c.getString(c.getColumnIndexOrThrow(DbAdapter.SERVER_COL_USERNAME)));
 			passwordEdit.setText(c.getString(c.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PASSWORD)));
 			db.close();

@@ -37,11 +37,11 @@ import com.google.protobuf.MessageLite;
 /**
  * The main mumble client connection
  * 
- * Maintains connection to the server and implements the low level
- * communication protocol
+ * Maintains connection to the server and implements the low level communication
+ * protocol
  * 
  * @author pcgod
- *
+ * 
  */
 public class MumbleConnection implements Runnable {
 	public enum MessageType {
@@ -58,8 +58,7 @@ public class MumbleConnection implements Runnable {
 
 	private static final MessageType[] MT_CONSTANTS = MessageType.class.getEnumConstants();
 
-	private static final int protocolVersion = (1 << 16) | (2 << 8)
-			| (3 & 0xFF);
+	private static final int protocolVersion = (1 << 16) | (2 << 8) | (3 & 0xFF);
 
 	public ArrayList<Channel> channelArray = new ArrayList<Channel>();
 	public int currentChannel = -1;
@@ -71,7 +70,7 @@ public class MumbleConnection implements Runnable {
 	private DataInputStream in;
 	private DataOutputStream out;
 	private Thread pingThread;
-	private boolean disconnecting = false; 
+	private boolean disconnecting = false;
 
 	private final String host;
 	private final int port;
@@ -83,22 +82,21 @@ public class MumbleConnection implements Runnable {
 	private Thread readingThread;
 	private Object stateLock = new Object();
 
-	public MumbleConnection(final MumbleConnectionHost connectionHost_,
-			final String host_, final int port_,
-			final String username_, final String password_) {
+	public MumbleConnection(final MumbleConnectionHost connectionHost_, final String host_,
+			final int port_, final String username_, final String password_) {
 		connectionHost = connectionHost_;
 		host = host_;
 		port = port_;
 		username = username_;
 		password = password_;
-		
+
 		connectionHost.setConnectionState(ConnectionState.Disconnected);
 	}
 
-	public final boolean isSameServer(final String host_, final int port_,
-			final String username_, final String password_) {
-		return host.equals(host_) && port == port_
-				&& username.equals(username_) && password.equals(password_);
+	public final boolean isSameServer(final String host_, final int port_, final String username_,
+			final String password_) {
+		return host.equals(host_) && port == port_ && username.equals(username_)
+				&& password.equals(password_);
 	}
 
 	public final void joinChannel(final int channelId) {
@@ -114,28 +112,26 @@ public class MumbleConnection implements Runnable {
 
 	public final void run() {
 		connectionHost.setConnectionState(ConnectionState.Connecting);
-		
+
 		try {
 			SSLSocket socket_;
-			
-			synchronized(stateLock) {
-				final SSLContext ctx_ = SSLContext.getInstance("TLS");
-				ctx_.init(null, new TrustManager[] { new LocalSSLTrustManager() },
-						null);
-				final SSLSocketFactory factory = ctx_.getSocketFactory();
-				socket_ = (SSLSocket) factory.createSocket(host,
-						port);
+
+			synchronized (stateLock) {
+				final SSLContext ctx = SSLContext.getInstance("TLS");
+				ctx.init(null, new TrustManager[] { new LocalSSLTrustManager() }, null);
+				final SSLSocketFactory factory = ctx.getSocketFactory();
+				socket_ = (SSLSocket) factory.createSocket(host, port);
 				socket_.setUseClientMode(true);
 				socket_.setEnabledProtocols(new String[] { "TLSv1" });
 				socket_.startHandshake();
-		
+
 				connectionHost.setConnectionState(ConnectionState.Connected);
 			}
-			
+
 			handleProtocol(socket_);
-			
+
 			socket_.close();
-			
+
 		} catch (final NoSuchAlgorithmException e) {
 			e.printStackTrace();
 		} catch (final KeyManagementException e) {
@@ -147,8 +143,8 @@ public class MumbleConnection implements Runnable {
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
-		
-		synchronized(stateLock) {
+
+		synchronized (stateLock) {
 			connectionHost.setConnectionState(ConnectionState.Disconnected);
 		}
 	}
@@ -162,9 +158,9 @@ public class MumbleConnection implements Runnable {
 		} catch (final IOException e) {
 			e.printStackTrace();
 		}
-		
+
 		final Channel c = findChannel(currentChannel);
-		
+
 		Message msg = new Message();
 		msg.timestamp = System.currentTimeMillis();
 		msg.message = message;
@@ -173,8 +169,8 @@ public class MumbleConnection implements Runnable {
 		connectionHost.messageSent(msg);
 	}
 
-	public final void sendMessage(final MessageType t,
-			final MessageLite.Builder b) throws IOException {
+	public final void sendMessage(final MessageType t, final MessageLite.Builder b)
+			throws IOException {
 		final MessageLite m = b.build();
 		final short type = (short) t.ordinal();
 		final int length = m.getSerializedSize();
@@ -190,8 +186,7 @@ public class MumbleConnection implements Runnable {
 		}
 	}
 
-	public final void sendUdpTunnelMessage(final byte[] buffer)
-			throws IOException {
+	public final void sendUdpTunnelMessage(final byte[] buffer) throws IOException {
 		final short type = (short) MessageType.UDPTunnel.ordinal();
 		final int length = buffer.length;
 
@@ -201,22 +196,22 @@ public class MumbleConnection implements Runnable {
 			out.write(buffer);
 		}
 	}
-	
+
 	public final void disconnect() {
 		synchronized (stateLock) {
 			if (readingThread != null) {
 				readingThread.interrupt();
 				readingThread = null;
 			}
-			
+
 			disconnecting = true;
 			connectionHost.setConnectionState(ConnectionState.Disconnecting);
 			stateLock.notifyAll();
 		}
 	}
-	
+
 	public final boolean isConnectionAlive() {
-	    return !disconnecting;
+		return !disconnecting;
 	}
 
 	private Channel findChannel(final int id) {
@@ -240,39 +235,41 @@ public class MumbleConnection implements Runnable {
 	}
 
 	private void handleProtocol(final Socket socket_) throws IOException, InterruptedException {
-		
+
 		synchronized (stateLock) {
-			if (disconnecting) return;
-			
+			if (disconnecting)
+				return;
+
 			out = new DataOutputStream(socket_.getOutputStream());
 			in = new DataInputStream(socket_.getInputStream());
-	
+
 			final Version.Builder v = Version.newBuilder();
 			v.setVersion(protocolVersion);
 			v.setRelease("javalib 0.0.1-dev");
-	
+
 			final Authenticate.Builder a = Authenticate.newBuilder();
 			a.setUsername(username);
 			a.setPassword(password);
 			a.addCeltVersions(0x8000000b);
-	
+
 			sendMessage(MessageType.Version, v);
 			sendMessage(MessageType.Authenticate, a);
-			
+
 			connectionHost.setConnectionState(ConnectionState.Connected);
 		}
 
-		// Process the stream in separate thread so we can interrupt it if necessary
-		// without interrupting the whole connection thread and thus allowing us to
-		// disconnect cleanly.
+		// Process the stream in separate thread so we can interrupt it if
+		// necessary without interrupting the whole connection thread and 
+		// thus allowing us to disconnect cleanly.
 		readingThread = new Thread(new Runnable() {
 			public void run() {
 				byte[] msg = null;
 				try {
 					while (socket_.isConnected() && !disconnecting) {
 
-						// Do the socket read outside of any lock as this is blocking operation
-						// which might take a while and must be interruptible.
+						// Do the socket read outside of any lock as this is
+						// blocking operation which might take a while and must
+						// be interruptible.
 						// Interrupt itself is synchronized through stateLock.
 						final short type = in.readShort();
 						final int length = in.readInt();
@@ -281,30 +278,31 @@ public class MumbleConnection implements Runnable {
 						}
 						in.readFully(msg);
 
-						// Message processing can be done inside stateLock as it shouldn't involve
-						// slow network operations.
-						synchronized(stateLock) {
+						// Message processing can be done inside stateLock as it
+						// shouldn't involve slow network operations.
+						synchronized (stateLock) {
 							processMsg(MT_CONSTANTS[type], msg);
 						}
 					}
 				} catch (IOException ex) {
 					Log.e(Globals.LOG_TAG, ex.toString());
 				} finally {
-					synchronized(stateLock) {
+					synchronized (stateLock) {
 						connectionHost.setConnectionState(ConnectionState.Disconnecting);
 						disconnecting = true;
-						
-						// The thread is dying so null it. This prevents the waiting loop from
-						// spotting that the thread might still be alive briefly after notifyAll.
+
+						// The thread is dying so null it. This prevents the
+						// waiting loop from spotting that the thread might still
+						// be alive briefly after notifyAll.
 						readingThread = null;
 						stateLock.notifyAll();
 					}
 				}
 			}
 		});
-		
+
 		readingThread.start();
-		
+
 		synchronized (stateLock) {
 			while (readingThread != null && readingThread.isAlive()) {
 				stateLock.wait();
@@ -347,8 +345,7 @@ public class MumbleConnection implements Runnable {
 		Log.i(Globals.LOG_TAG, "--- end user list ---");
 	}
 
-	private void processMsg(final MessageType t, final byte[] buffer)
-			throws IOException {
+	private void processMsg(final MessageType t, final byte[] buffer) throws IOException {
 		switch (t) {
 		case UDPTunnel:
 			processVoicePacket(buffer);
@@ -373,8 +370,8 @@ public class MumbleConnection implements Runnable {
 
 			final UserState.Builder usb = UserState.newBuilder();
 			usb.setSession(session);
-//			usb.setPluginContext(ByteString
-//					.copyFromUtf8("Manual placement\000test"));
+			// usb.setPluginContext(ByteString
+			// .copyFromUtf8("Manual placement\000test"));
 			sendMessage(MessageType.UserState, usb);
 
 			connectionHost.channelsUpdated();
@@ -389,7 +386,7 @@ public class MumbleConnection implements Runnable {
 				connectionHost.channelsUpdated();
 				break;
 			}
-			
+
 			// New channel
 			c = new Channel();
 			c.id = cs.getChannelId();
@@ -407,7 +404,7 @@ public class MumbleConnection implements Runnable {
 			final UserState us = UserState.parseFrom(buffer);
 			User u = findUser(us.getSession());
 			if (u != null) {
-				
+
 				if (us.hasChannelId()) {
 					u.channel = us.getChannelId();
 					recountChannelUsers();
@@ -417,7 +414,7 @@ public class MumbleConnection implements Runnable {
 					}
 					connectionHost.channelsUpdated();
 				}
-				
+
 				if (us.getSession() == session) {
 					if (us.hasMute() || us.hasSuppress()) {
 						if (us.hasMute()) {

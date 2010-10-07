@@ -2,9 +2,9 @@ package org.pcgod.mumbleclient.service.model;
 
 import java.io.Serializable;
 
-public class User implements Serializable{
+public class User implements Serializable {
 	private static final long serialVersionUID = 1L;
-	
+
 	public static final int TALKINGSTATE_PASSIVE = 0;
 	public static final int TALKINGSTATE_TALKING = 1;
 	public static final int TALKINGSTATE_SHOUTING = 2;
@@ -31,7 +31,6 @@ public class User implements Serializable{
 
 	@Override
 	public final String toString() {
-		return "User [session=" + session + ", name=" + name + ", channel="
-				+ channel + "]";
+		return "User [session=" + session + ", name=" + name + ", channel=" + channel + "]";
 	}
 }

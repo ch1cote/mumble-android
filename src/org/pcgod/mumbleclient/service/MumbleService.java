@@ -27,109 +27,114 @@ import android.util.Log;
 /**
  * Service for providing the client an access to the connection.
  * 
- * MumbleService manages the MumbleClient connection and provides access to
- * it for binding activities.
+ * MumbleService manages the MumbleClient connection and provides access to it
+ * for binding activities.
  * 
  * @author wace
- *
+ * 
  */
 public class MumbleService extends Service {
-	
-    public static final String ACTION_CONNECT = "mumbleclient.action.CONNECT";
-    
+
+	public static final String ACTION_CONNECT = "mumbleclient.action.CONNECT";
+
 	public static final String INTENT_CHANNEL_LIST_UPDATE = "mumbleclient.intent.CHANNEL_LIST_UPDATE";
 	public static final String INTENT_CURRENT_CHANNEL_CHANGED = "mumbleclient.intent.CURRENT_CHANNEL_CHANGED";
 	public static final String INTENT_USER_LIST_UPDATE = "mumbleclient.intent.USER_LIST_UPDATE";
 	public static final String INTENT_CHAT_TEXT_UPDATE = "mumbleclient.intent.CHAT_TEXT_UPDATE";
 	public static final String INTENT_CONNECTION_STATE_CHANGED = "mumbleclient.intent.CONNECTION_STATE_CHANGED";
-	
+
 	public static final String EXTRA_MESSAGE = "mumbleclient.extra.MESSAGE";
 	public static final String EXTRA_CONNECTION_STATE = "mumbleclient.extra.CONNECTION_STATE";
-	
-    public static final String EXTRA_HOST = "mumbleclient.extra.HOST";
-    public static final String EXTRA_PORT = "mumbleclient.extra.PORT";
-    public static final String EXTRA_USERNAME = "mumbleclient.extra.USERNAME";
-    public static final String EXTRA_PASSWORD = "mumbleclient.extra.PASSWORD";
-    
+
+	public static final String EXTRA_HOST = "mumbleclient.extra.HOST";
+	public static final String EXTRA_PORT = "mumbleclient.extra.PORT";
+	public static final String EXTRA_USERNAME = "mumbleclient.extra.USERNAME";
+	public static final String EXTRA_PASSWORD = "mumbleclient.extra.PASSWORD";
+
 	public class LocalBinder extends Binder {
 		public MumbleService getService() {
 			return MumbleService.this;
 		}
 	}
-	
+
 	private MumbleConnection mClient;
 	private Thread mClientThread;
 	private Thread mRecordThread;
 	private Notification mNotification;
 	private boolean mHasConnections;
-	
+
 	private MumbleConnectionHost connectionHost = new MumbleConnectionHost() {
-		
+
 		public void channelsUpdated() {
 			sendBroadcast(INTENT_CHANNEL_LIST_UPDATE);
 		}
 
 		public void currentChannelChanged() {
-			sendBroadcast(INTENT_CURRENT_CHANNEL_CHANGED);	
+			sendBroadcast(INTENT_CURRENT_CHANNEL_CHANGED);
 		}
 
 		public void messageReceived(Message msg) {
 			messages.add(msg);
 			Bundle b = new Bundle();
 			b.putSerializable(EXTRA_MESSAGE, msg);
-			sendBroadcast(INTENT_CHAT_TEXT_UPDATE, b); 
+			sendBroadcast(INTENT_CHAT_TEXT_UPDATE, b);
 		}
 
 		public void messageSent(Message msg) {
 			messages.add(msg);
 			Bundle b = new Bundle();
 			b.putSerializable(EXTRA_MESSAGE, msg);
-			sendBroadcast(INTENT_CHAT_TEXT_UPDATE, b); 
+			sendBroadcast(INTENT_CHAT_TEXT_UPDATE, b);
 		}
 
 		public void setConnectionState(ConnectionState state) {
-			if (MumbleService.this.state == state) return;
-			
+			if (MumbleService.this.state == state)
+				return;
+
 			MumbleService.this.state = state;
 			Bundle b = new Bundle();
 			b.putSerializable(EXTRA_CONNECTION_STATE, state);
 			sendBroadcast(INTENT_CONNECTION_STATE_CHANGED);
 			Log.i(Globals.LOG_TAG, "MumbleService: Connection state changed to " + state.toString());
-			
+
 			// Handle foreground stuff
 			if (state == ConnectionState.Connected) {
-		        mNotification = new Notification(R.drawable.icon, "Mumble connected", System.currentTimeMillis());
-		        
-		        Intent channelListIntent = new Intent(MumbleService.this, ChannelList.class);
-		        channelListIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-		        mNotification.setLatestEventInfo(MumbleService.this, "Mumble", "Mumble is connected to a server", 
-		                PendingIntent.getActivity(MumbleService.this, 0, channelListIntent, 0));
-		        startForeground(1, mNotification);
+				mNotification = new Notification(R.drawable.icon, "Mumble connected",
+						System.currentTimeMillis());
+
+				Intent channelListIntent = new Intent(MumbleService.this, ChannelList.class);
+				channelListIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+						.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+				mNotification.setLatestEventInfo(MumbleService.this, "Mumble",
+						"Mumble is connected to a server", 
+						PendingIntent.getActivity(MumbleService.this, 0, channelListIntent, 0));
+				startForeground(1, mNotification);
 			} else if (state == ConnectionState.Disconnected) {
-			    if (mNotification != null) {
-			        stopForeground(true);
-			        mNotification = null;
-			    }
+				if (mNotification != null) {
+					stopForeground(true);
+					mNotification = null;
+				}
 			}
-			
+
 			// If the connection was disconnected and there are no bound
 			// connections to this service, finish it.
 			if (state == ConnectionState.Disconnected && !mHasConnections) {
-				Log.i(Globals.LOG_TAG, "MumbleService: Service disconnected while there are no connections up.");
-			    stopSelf();
+				Log.i(Globals.LOG_TAG,
+						"MumbleService: Service disconnected while there are no connections up.");
+				stopSelf();
 			}
 		}
-			
+
 		public void userListUpdated() {
 			sendBroadcast(INTENT_USER_LIST_UPDATE);
 		}
 	};
-	
+
 	private final LocalBinder mBinder = new LocalBinder();
-	
+
 	private ConnectionState state;
 	private final List<Message> messages = new LinkedList<Message>();
-	
+
 	@Override
 	public void onCreate() {
 		super.onCreate();
@@ -142,114 +147,115 @@ public class MumbleService extends Service {
 		super.onDestroy();
 		Log.i(Globals.LOG_TAG, "MumbleService: Destroyed");
 	}
-	
+
 	@Override
 	public IBinder onBind(Intent intent) {
-	    mHasConnections = true;
+		mHasConnections = true;
 		Log.i(Globals.LOG_TAG, "MumbleService: Bound");
 		return mBinder;
 	}
-	
+
 	@Override
 	public boolean onUnbind(Intent intent) {
-	    mHasConnections = false;
-	    
+		mHasConnections = false;
+
 		Log.i(Globals.LOG_TAG, "MumbleService: Unbound");
-	    
-	    if (state == ConnectionState.Disconnected) { 
-	    	stopSelf();
-			Log.i(Globals.LOG_TAG, "MumbleService: No clients bound and connection is not alive -> Stopping");
-	    }
-	    
-	    return false;
+
+		if (state == ConnectionState.Disconnected) {
+			stopSelf();
+			Log.i(Globals.LOG_TAG,
+					"MumbleService: No clients bound and connection is not alive -> Stopping");
+		}
+
+		return false;
 	}
-	
+
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
-        String host = intent.getStringExtra(EXTRA_HOST);
-        int port = intent.getIntExtra(EXTRA_PORT, -1);
-        String username = intent.getStringExtra(EXTRA_USERNAME);
-        String password = intent.getStringExtra(EXTRA_PASSWORD);
-        
-        if (mClient != null
-                && mClient.isSameServer(host, port, username, password)
-                && isConnected()) {
-            return START_STICKY;
-        }
+		String host = intent.getStringExtra(EXTRA_HOST);
+		int port = intent.getIntExtra(EXTRA_PORT, -1);
+		String username = intent.getStringExtra(EXTRA_USERNAME);
+		String password = intent.getStringExtra(EXTRA_PASSWORD);
 
-        if (mClientThread != null) mClientThread.interrupt();
-	        
-        mClient = new MumbleConnection(connectionHost, host, port, username, password);
-        mClientThread = new Thread(mClient, "net");
-        mClientThread.start();
-        return START_STICKY;
+		if (mClient != null && mClient.isSameServer(host, port, username, password)
+				&& isConnected()) {
+			return START_STICKY;
+		}
+
+		if (mClientThread != null)
+			mClientThread.interrupt();
+
+		mClient = new MumbleConnection(connectionHost, host, port, username, password);
+		mClientThread = new Thread(mClient, "net");
+		mClientThread.start();
+		return START_STICKY;
 	}
 
 	public boolean isConnected() {
 		return state == ConnectionState.Connected;
 	}
-	
+
 	public ConnectionState getConnectionState() {
-	    return state;
+		return state;
 	}
-	
+
 	public void disconnect() {
-	    assertConnected();
-	    
-	    mClient.disconnect();
+		assertConnected();
+
+		mClient.disconnect();
 	}
-	
+
 	public int getCurrentChannel() {
 		assertConnected();
 
 		return mClient.currentChannel;
 	}
-	
+
 	public void joinChannel(int channelId) {
 		assertConnected();
 
 		mClient.joinChannel(channelId);
 	}
-	
+
 	public boolean canSpeak() {
 		return mClient.canSpeak;
 	}
-	
+
 	public Collection<User> getUsers() {
 		assertConnected();
 
 		return Collections.unmodifiableCollection(mClient.userArray);
 	}
-	
+
 	public List<Channel> getChannelList() {
 		assertConnected();
 
-		return Collections.unmodifiableList( mClient.channelArray );
+		return Collections.unmodifiableList(mClient.channelArray);
 	}
-	
+
 	public List<Message> getMessageList() {
-		return Collections.unmodifiableList( messages );
+		return Collections.unmodifiableList(messages);
 	}
-	
+
 	public void sendUdpTunnelMessage(byte[] buffer) throws IOException {
 		assertConnected();
 
 		mClient.sendUdpTunnelMessage(buffer);
 	}
-	
+
 	public void sendChannelTextMessage(String message) {
 		assertConnected();
 
 		mClient.sendChannelTextMessage(message);
 	}
-	
+
 	public boolean isRecording() {
 		return (mRecordThread != null);
 	}
-	
+
 	public void setRecording(boolean state) {
 		assertConnected();
-		
+
 		if (mRecordThread == null && state) {
 			// start record
 			// TODO check initialized
@@ -261,20 +267,22 @@ public class MumbleService extends Service {
 			mRecordThread = null;
 		}
 	}
-	
+
 	private void assertConnected() {
-		if (!isConnected()) throw new IllegalStateException("Service is not connected");
+		if (!isConnected())
+			throw new IllegalStateException("Service is not connected");
 	}
-	
+
 	private void sendBroadcast(final String action) {
 		sendBroadcast(action, null);
 	}
-	
+
 	private void sendBroadcast(final String action, Bundle extras) {
 		final Intent i = new Intent(action);
-		
-		if (extras != null) i.putExtras(extras);
-		
+
+		if (extras != null)
+			i.putExtras(extras);
+
 		sendBroadcast(i);
 	}
 }

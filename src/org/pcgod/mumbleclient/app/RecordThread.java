@@ -19,7 +19,7 @@ import android.util.Log;
  * Thread responsible for recording voice and sending it over to server.
  * 
  * @author pcgod
- *
+ * 
  */
 public class RecordThread implements Runnable {
 	private static final int AUDIO_QUALITY = 60000;
@@ -41,28 +41,25 @@ public class RecordThread implements Runnable {
 	public RecordThread(final MumbleService service) {
 		mService = service;
 		for (final int s : new int[] { 48000, 44100, 22050, 11025, 8000 }) {
-			bufferSize = AudioRecord.getMinBufferSize(s,
-					AudioFormat.CHANNEL_CONFIGURATION_MONO,
+			bufferSize = AudioRecord.getMinBufferSize(s, AudioFormat.CHANNEL_CONFIGURATION_MONO,
 					AudioFormat.ENCODING_PCM_16BIT);
 			if (bufferSize > 0) {
 				recordingSampleRate = s;
 				break;
 			}
-			
+
 		}
 
 		if (bufferSize < 0) {
 			throw new RuntimeException("No recording sample rate found");
 		}
 
-		Log.i("mumbleclient", "Selected recording sample rate: "
-				+ recordingSampleRate);
+		Log.i("mumbleclient", "Selected recording sample rate: " + recordingSampleRate);
 
 		frameSize = recordingSampleRate / 100;
 
-		ar = new AudioRecord(MediaRecorder.AudioSource.MIC,
-				recordingSampleRate, AudioFormat.CHANNEL_CONFIGURATION_MONO,
-				AudioFormat.ENCODING_PCM_16BIT, 64 * 1024);
+		ar = new AudioRecord(MediaRecorder.AudioSource.MIC, recordingSampleRate,
+				AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT, 64 * 1024);
 
 		buffer = new short[frameSize];
 		celtMode = Native.celt_mode_create(MumbleConnection.SAMPLE_RATE,
@@ -89,15 +86,13 @@ public class RecordThread implements Runnable {
 		}
 
 		boolean running = true;
-		android.os.Process
-				.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+		android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
 
 		ar.startRecording();
 		while (running && !Thread.interrupted()) {
 			final int read = ar.read(buffer, 0, frameSize);
 
-			if (read == AudioRecord.ERROR_BAD_VALUE
-					|| read == AudioRecord.ERROR_INVALID_OPERATION) {
+			if (read == AudioRecord.ERROR_BAD_VALUE || read == AudioRecord.ERROR_INVALID_OPERATION) {
 				throw new RuntimeException("" + read);
 			}
 
@@ -113,8 +108,7 @@ public class RecordThread implements Runnable {
 			}
 
 			final int compressedSize = Math.min(AUDIO_QUALITY / (100 * 8), 127);
-			final ByteBuffer compressed = ByteBuffer
-					.allocate(compressedSize * 2);
+			final ByteBuffer compressed = ByteBuffer.allocate(compressedSize * 2);
 			final byte[] comp = compressed.array();
 			int len;
 			synchronized (Native.class) {
@@ -134,8 +128,7 @@ public class RecordThread implements Runnable {
 				flags |= MumbleConnection.UDPMESSAGETYPE_UDPVOICECELTALPHA << 5;
 				tmpBuf.put((byte) flags);
 
-				final PacketDataStream pds = new PacketDataStream(tmpBuf
-						.slice());
+				final PacketDataStream pds = new PacketDataStream(tmpBuf.slice());
 				seq += framesPerPacket;
 				pds.writeLong(seq);
 				for (int i = 0; i < framesPerPacket; ++i) {

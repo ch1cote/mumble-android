@@ -2,9 +2,8 @@ package org.pcgod.mumbleclient;
 
 /**
  * Constant global values
- * 
+ *
  * @author Rantanen
- * 
  */
 public class Globals {
 

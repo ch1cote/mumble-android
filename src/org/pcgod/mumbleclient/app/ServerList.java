@@ -27,15 +27,14 @@ import android.widget.AdapterView.AdapterContextMenuInfo;
 
 /**
  * The main server list activity.
- * 
- * Shows a list of servers and allows connecting to these. Also provides ways to
- * start creating and editing servers.
- * 
+ *
+ * Shows a list of servers and allows connecting to these. Also provides
+ * ways to start creating and editing servers.
+ *
  * @author pcgod
- * 
+ *
  */
 public class ServerList extends ConnectedListActivity {
-
 	private class ServerAdapter extends BaseAdapter {
 		private final Context context;
 		private final Cursor cursor;
@@ -46,21 +45,26 @@ public class ServerList extends ConnectedListActivity {
 			startManagingCursor(cursor);
 		}
 
+		@Override
 		public final int getCount() {
 			return cursor.getCount();
 		}
 
+		@Override
 		public final Object getItem(final int position) {
 			return getItemId(position);
 		}
 
+		@Override
 		public final long getItemId(final int position) {
 			cursor.moveToPosition(position);
 			return cursor.getLong(cursor
 					.getColumnIndexOrThrow(DbAdapter.SERVER_COL_ID));
 		}
 
-		public final View getView(final int position, final View v, final ViewGroup parent) {
+		@Override
+		public final View getView(final int position, final View v,
+				final ViewGroup parent) {
 			final LayoutInflater inflater = (LayoutInflater) context
 					.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 			final View row = inflater.inflate(
@@ -81,12 +85,14 @@ public class ServerList extends ConnectedListActivity {
 					.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PORT));
 			final String serverUsername = cursor.getString(cursor
 					.getColumnIndexOrThrow(DbAdapter.SERVER_COL_USERNAME));
+
 			if ("".equals(serverName)) {
 				nameText.setText(serverHost + ":" + serverPort);
 				userText.setText(serverUsername);
 			} else {
 				nameText.setText(serverName);
-				userText.setText(serverUsername + "@" + serverHost + ":" + serverPort);
+				userText.setText(serverUsername + "@" + serverHost + ":" +
+						serverPort);
 			}
 
 			return row;
@@ -108,7 +114,8 @@ public class ServerList extends ConnectedListActivity {
 
 	@Override
 	public final boolean onContextItemSelected(final MenuItem item) {
-		final AdapterContextMenuInfo info = (AdapterContextMenuInfo) item.getMenuInfo();
+		final AdapterContextMenuInfo info = (AdapterContextMenuInfo) item
+				.getMenuInfo();
 		switch (item.getItemId()) {
 		case MENU_CONNECT_SERVER:
 			onListItemClick(getListView(), getCurrentFocus(), info.position,
@@ -132,7 +139,8 @@ public class ServerList extends ConnectedListActivity {
 		super.onCreateContextMenu(menu, v, menuInfo);
 
 		final int menuPosition = ((AdapterView.AdapterContextMenuInfo) menuInfo).position;
-		final int serverId = (int) getListView().getItemIdAtPosition(menuPosition);
+		final int serverId = (int) getListView().getItemIdAtPosition(
+				menuPosition);
 		final Cursor c = dbAdapter.fetchServer(serverId);
 		final String name = getServerName(c);
 		c.close();
@@ -157,7 +165,8 @@ public class ServerList extends ConnectedListActivity {
 	}
 
 	@Override
-	public final boolean onMenuItemSelected(final int featureId, final MenuItem item) {
+	public final boolean onMenuItemSelected(final int featureId,
+			final MenuItem item) {
 		switch (item.getItemId()) {
 		case MENU_ADD_SERVER:
 			addServer();
@@ -176,49 +185,85 @@ public class ServerList extends ConnectedListActivity {
 		startActivityForResult(i, ACTIVITY_ADD_SERVER);
 	}
 
-	private void editServer(long id) {
+	private Dialog createDeleteServerDialog() {
+		final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+		builder.setMessage("Are you sure you want to delete this server?")
+				.setCancelable(false).setPositiveButton("Yes",
+						new DialogInterface.OnClickListener() {
+							public void onClick(final DialogInterface dialog,
+									final int id) {
+								if (serverToDeleteId > 0) {
+									dbAdapter.deleteServer(serverToDeleteId);
+									serverToDeleteId = -1;
+									fillList();
+									Toast.makeText(ServerList.this,
+											R.string.server_deleted,
+											Toast.LENGTH_SHORT).show();
+								}
+							}
+						}).setNegativeButton("No",
+						new DialogInterface.OnClickListener() {
+							public void onClick(final DialogInterface dialog,
+									final int id) {
+								dialog.cancel();
+							}
+						});
+
+		return builder.create();
+	}
+
+	private void editServer(final long id) {
 		final Intent i = new Intent(this, ServerInfo.class);
 		i.putExtra("serverId", id);
 		startActivityForResult(i, ACTIVITY_ADD_SERVER);
 	}
 
-	private Dialog createDeleteServerDialog() {
-		final AlertDialog.Builder builder = new AlertDialog.Builder(this);
-		builder.setMessage("Are you sure you want to delete this server?")
-				.setCancelable(false)
-				.setPositiveButton("Yes", new DialogInterface.OnClickListener() {
-					public void onClick(final DialogInterface dialog, final int id) {
-						if (serverToDeleteId > 0) {
-							dbAdapter.deleteServer(serverToDeleteId);
-							serverToDeleteId = -1;
-							fillList();
-							Toast.makeText(ServerList.this, R.string.server_deleted,
-									Toast.LENGTH_SHORT).show();
-						}
-					}
-				})
-				.setNegativeButton("No", new DialogInterface.OnClickListener() {
-					public void onClick(final DialogInterface dialog, final int id) {
-						dialog.cancel();
-					}
-				});
-
-		return builder.create();
-	}
-
 	private String getServerName(final Cursor c) {
-		String name = c.getString(c.getColumnIndexOrThrow(DbAdapter.SERVER_COL_NAME));
+		String name = c.getString(c
+				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_NAME));
 		if ("".equals(name)) {
-			final String host = c.getString(c.getColumnIndexOrThrow(DbAdapter.SERVER_COL_HOST));
-			final int port = c.getInt(c.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PORT));
+			final String host = c.getString(c
+					.getColumnIndexOrThrow(DbAdapter.SERVER_COL_HOST));
+			final int port = c.getInt(c
+					.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PORT));
 			name = host + ":" + port;
 		}
 		return name;
 	}
 
+	/**
+	 * Starts connecting to a server.
+	 *
+	 * @param id
+	 */
+	protected final void connectServer(final long id) {
+		final Cursor c = dbAdapter.fetchServer(id);
+		final String host = c.getString(c
+				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_HOST));
+		final int port = c.getInt(c
+				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PORT));
+		final String username = c.getString(c
+				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_USERNAME));
+		final String password = c.getString(c
+				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PASSWORD));
+		c.close();
+
+		final Intent connectionIntent = new Intent(this, MumbleService.class);
+		connectionIntent.setAction(MumbleService.ACTION_CONNECT);
+		connectionIntent.putExtra(MumbleService.EXTRA_HOST, host);
+		connectionIntent.putExtra(MumbleService.EXTRA_PORT, port);
+		connectionIntent.putExtra(MumbleService.EXTRA_USERNAME, username);
+		connectionIntent.putExtra(MumbleService.EXTRA_PASSWORD, password);
+		startService(connectionIntent);
+		//mService.setServer(host, port, username, password);
+
+		final Intent i = new Intent(this, ChannelList.class);
+		startActivityForResult(i, ACTIVITY_CHANNEL_LIST);
+	}
+
 	@Override
-	protected final void onActivityResult(final int requestCode, final int resultCode,
-			final Intent data) {
+	protected final void onActivityResult(final int requestCode,
+			final int resultCode, final Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
 		fillList();
 	}
@@ -257,41 +302,11 @@ public class ServerList extends ConnectedListActivity {
 	}
 
 	@Override
-	protected final void onListItemClick(final ListView l, final View v, final int position,
-			final long id) {
+	protected final void onListItemClick(final ListView l, final View v,
+			final int position, final long id) {
 		super.onListItemClick(l, v, position, id);
 
 		connectServer(id);
-	}
-
-	/**
-	 * Starts connecting to a server.
-	 * 
-	 * @param id
-	 */
-	protected final void connectServer(final long id) {
-		final Cursor c = dbAdapter.fetchServer(id);
-		final String host = c.getString(c
-				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_HOST));
-		final int port = c.getInt(c
-				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PORT));
-		final String username = c.getString(c
-				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_USERNAME));
-		final String password = c.getString(c
-				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PASSWORD));
-		c.close();
-
-		Intent connectionIntent = new Intent(this, MumbleService.class);
-		connectionIntent.setAction(MumbleService.ACTION_CONNECT);
-		connectionIntent.putExtra(MumbleService.EXTRA_HOST, host);
-		connectionIntent.putExtra(MumbleService.EXTRA_PORT, port);
-		connectionIntent.putExtra(MumbleService.EXTRA_USERNAME, username);
-		connectionIntent.putExtra(MumbleService.EXTRA_PASSWORD, password);
-		startService(connectionIntent);
-		//mService.setServer(host, port, username, password);
-
-		final Intent i = new Intent(this, ChannelList.class);
-		startActivityForResult(i, ACTIVITY_CHANNEL_LIST);
 	}
 
 	void fillList() {

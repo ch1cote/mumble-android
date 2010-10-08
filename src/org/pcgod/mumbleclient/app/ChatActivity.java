@@ -28,7 +28,8 @@ public class ChatActivity extends ConnectedActivity {
 	private class ChatBroadcastReceiver extends BroadcastReceiver {
 		@Override
 		public final void onReceive(final Context ctx, final Intent i) {
-			Message msg = (Message) i.getSerializableExtra(MumbleService.EXTRA_MESSAGE);
+			final Message msg = (Message) i
+					.getSerializableExtra(MumbleService.EXTRA_MESSAGE);
 			addMessage(msg);
 		}
 	}
@@ -38,11 +39,12 @@ public class ChatActivity extends ConnectedActivity {
 
 	private static final int MENU_CLEAR = Menu.FIRST;
 
-	private OnEditorActionListener chatTextEditActionEvent = new OnEditorActionListener() {
-
-		public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+	private final OnEditorActionListener chatTextEditActionEvent = new OnEditorActionListener() {
+		@Override
+		public boolean onEditorAction(final TextView v, final int actionId,
+				final KeyEvent event) {
 			if (event != null && !event.isShiftPressed() && v != null) {
-				View focus = v.focusSearch(View.FOCUS_RIGHT);
+				final View focus = v.focusSearch(View.FOCUS_RIGHT);
 				if (focus != null) {
 					focus.requestFocus();
 					return true;
@@ -60,7 +62,8 @@ public class ChatActivity extends ConnectedActivity {
 		}
 	};
 
-	private OnClickListener sendOnClickEvent = new OnClickListener() {
+	private final OnClickListener sendOnClickEvent = new OnClickListener() {
+		@Override
 		public void onClick(final View v) {
 			sendMessage(chatTextEdit);
 		}
@@ -70,12 +73,14 @@ public class ChatActivity extends ConnectedActivity {
 
 	@Override
 	public final boolean onCreateOptionsMenu(final Menu menu) {
-		menu.add(0, MENU_CLEAR, 0, "Clear").setIcon(android.R.drawable.ic_menu_delete);
+		menu.add(0, MENU_CLEAR, 0, "Clear").setIcon(
+				android.R.drawable.ic_menu_delete);
 		return true;
 	}
 
 	@Override
-	public final boolean onMenuItemSelected(final int featureId, final MenuItem item) {
+	public final boolean onMenuItemSelected(final int featureId,
+			final MenuItem item) {
 		switch (item.getItemId()) {
 		case MENU_CLEAR:
 			chatText.setText("");
@@ -118,8 +123,8 @@ public class ChatActivity extends ConnectedActivity {
 	protected void onServiceBound() {
 		super.onServiceBound();
 
-		List<Message> messages = mService.getMessageList();
-		for (Message m : messages) {
+		final List<Message> messages = mService.getMessageList();
+		for (final Message m : messages) {
 			addMessage(m);
 		}
 
@@ -129,13 +134,8 @@ public class ChatActivity extends ConnectedActivity {
 		registerReceiver(bcReceiver, ifilter);
 	}
 
-	void sendMessage(TextView v) {
-		mService.sendChannelTextMessage(v.getText().toString());
-		v.setText("");
-	}
-
-	void addMessage(Message msg) {
-		StringBuilder sb = new StringBuilder();
+	void addMessage(final Message msg) {
+		final StringBuilder sb = new StringBuilder();
 		sb.append("[");
 		sb.append(DateUtils.formatDateTime(this, msg.timestamp,
 				DateUtils.FORMAT_SHOW_TIME));
@@ -164,19 +164,23 @@ public class ChatActivity extends ConnectedActivity {
 		chatText.append(sb.toString());
 	}
 
+	void sendMessage(final TextView v) {
+		mService.sendChannelTextMessage(v.getText().toString());
+		v.setText("");
+	}
+
 	void updateText() {
 		chatText.beginBatchEdit();
 		chatText.setText("");
-		chatText.endBatchEdit();
-		// for (final String s : ServerList.client.chatList) {
-		// chatText.append(s);
-		// }
-		// chatText.endBatchEdit();
-		// chatText.post(new Runnable() {
-		// @Override
-		// public void run() {
-		// chatText.scrollTo(0, chatText.getHeight());
-		// }
-		// });
+//		for (final String s : ServerList.client.chatList) {
+//			chatText.append(s);
+//		}
+//		chatText.endBatchEdit();
+//		chatText.post(new Runnable() {
+//			@Override
+//			public void run() {
+//				chatText.scrollTo(0, chatText.getHeight());
+//			}
+//		});
 	}
 }

@@ -18,6 +18,7 @@ import javax.net.ssl.TrustManager;
 import net.sf.mumble.MumbleProto.Authenticate;
 import net.sf.mumble.MumbleProto.ChannelRemove;
 import net.sf.mumble.MumbleProto.ChannelState;
+import net.sf.mumble.MumbleProto.CodecVersion;
 import net.sf.mumble.MumbleProto.ServerSync;
 import net.sf.mumble.MumbleProto.TextMessage;
 import net.sf.mumble.MumbleProto.UserRemove;
@@ -37,12 +38,11 @@ import com.google.protobuf.MessageLite;
 
 /**
  * The main mumble client connection
- * 
- * Maintains connection to the server and implements the low level communication
- * protocol
- * 
+ *
+ * Maintains connection to the server and implements the low level
+ * communication protocol
+ *
  * @author pcgod
- * 
  */
 public class MumbleConnection implements Runnable {
 	public enum MessageType {
@@ -54,18 +54,27 @@ public class MumbleConnection implements Runnable {
 	public static final int UDPMESSAGETYPE_UDPVOICESPEEX = 2;
 	public static final int UDPMESSAGETYPE_UDPVOICECELTBETA = 3;
 
+	public static final int CODEC_NOCODEC = -1;
+	public static final int CODEC_ALPHA = UDPMESSAGETYPE_UDPVOICECELTALPHA;
+	public static final int CODEC_BETA = UDPMESSAGETYPE_UDPVOICECELTBETA;
+
 	public static final int SAMPLE_RATE = 48000;
 	public static final int FRAME_SIZE = SAMPLE_RATE / 100;
 
-	private static final MessageType[] MT_CONSTANTS = MessageType.class.getEnumConstants();
+	private static final MessageType[] MT_CONSTANTS = MessageType.class
+			.getEnumConstants();
 
-	private static final int protocolVersion = (1 << 16) | (2 << 8) | (3 & 0xFF);
+	private static final int protocolVersion = (1 << 16) | (2 << 8) |
+			(3 & 0xFF);
+
+	private static final int supportedCodec = 0x8000000b;
 
 	public Map<Integer, Channel> channels = new HashMap<Integer, Channel>();
 	public Map<Integer, User> users = new HashMap<Integer, User>();
 	public Channel currentChannel = null;
 	public int session;
 	public boolean canSpeak = true;
+	public int codec = CODEC_NOCODEC;
 	private final MumbleConnectionHost connectionHost;
 
 	private DataInputStream in;
@@ -81,11 +90,11 @@ public class MumbleConnection implements Runnable {
 	private AudioOutput ao;
 	private Thread audioOutputThread;
 	private Thread readingThread;
-	private Object stateLock = new Object();
+	private final Object stateLock = new Object();
 
 	public MumbleConnection(final MumbleConnectionHost connectionHost_,
-			final String host_, final int port_,
-			final String username_, final String password_) {
+			final String host_, final int port_, final String username_,
+			final String password_) {
 		connectionHost = connectionHost_;
 		host = host_;
 		port = port_;
@@ -93,108 +102,6 @@ public class MumbleConnection implements Runnable {
 		password = password_;
 
 		connectionHost.setConnectionState(ConnectionState.Disconnected);
-	}
-
-	public final boolean isSameServer(final String host_, final int port_, final String username_,
-			final String password_) {
-		return host.equals(host_) && port == port_ && username.equals(username_)
-				&& password.equals(password_);
-	}
-
-	public final void joinChannel(final int channelId) {
-		final UserState.Builder us = UserState.newBuilder();
-		us.setSession(session);
-		us.setChannelId(channelId);
-		try {
-			sendMessage(MessageType.UserState, us);
-		} catch (final IOException e) {
-			e.printStackTrace();
-		}
-	}
-
-	public final void run() {
-		connectionHost.setConnectionState(ConnectionState.Connecting);
-
-		try {
-			SSLSocket socket_;
-
-			synchronized (stateLock) {
-				final SSLContext sslCtx = SSLContext.getInstance("TLS");
-				sslCtx.init(null, new TrustManager[] { new LocalSSLTrustManager() }, null);
-				final SSLSocketFactory factory = sslCtx.getSocketFactory();
-				socket_ = (SSLSocket) factory.createSocket(host, port);
-				socket_.setUseClientMode(true);
-				socket_.setEnabledProtocols(new String[] { "TLSv1" });
-				socket_.startHandshake();
-
-				connectionHost.setConnectionState(ConnectionState.Connected);
-			}
-
-			handleProtocol(socket_);
-
-			socket_.close();
-
-		} catch (final NoSuchAlgorithmException e) {
-			e.printStackTrace();
-		} catch (final KeyManagementException e) {
-			e.printStackTrace();
-		} catch (final UnknownHostException e) {
-			e.printStackTrace();
-		} catch (final IOException e) {
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-
-		synchronized (stateLock) {
-			connectionHost.setConnectionState(ConnectionState.Disconnected);
-		}
-	}
-
-	public final void sendChannelTextMessage(final String message) {
-		final TextMessage.Builder tmb = TextMessage.newBuilder();
-		tmb.addChannelId(currentChannel.id);
-		tmb.setMessage(message);
-		try {
-			sendMessage(MessageType.TextMessage, tmb);
-		} catch (final IOException e) {
-			e.printStackTrace();
-		}
-
-		Message msg = new Message();
-		msg.timestamp = System.currentTimeMillis();
-		msg.message = message;
-		msg.channel = currentChannel;
-		msg.direction = Direction.Sent;
-		connectionHost.messageSent(msg);
-	}
-
-	public final void sendMessage(final MessageType t, final MessageLite.Builder b)
-			throws IOException {
-		final MessageLite m = b.build();
-		final short type = (short) t.ordinal();
-		final int length = m.getSerializedSize();
-
-		synchronized (out) {
-			out.writeShort(type);
-			out.writeInt(length);
-			m.writeTo(out);
-		}
-
-		if (t != MessageType.Ping) {
-			Log.i(Globals.LOG_TAG, "<<< " + t);
-		}
-	}
-
-	public final void sendUdpTunnelMessage(final byte[] buffer) throws IOException {
-		final short type = (short) MessageType.UDPTunnel.ordinal();
-		final int length = buffer.length;
-
-		synchronized (out) {
-			out.writeShort(type);
-			out.writeInt(length);
-			out.write(buffer);
-		}
 	}
 
 	public final void disconnect() {
@@ -214,6 +121,113 @@ public class MumbleConnection implements Runnable {
 		return !disconnecting;
 	}
 
+	public final boolean isSameServer(final String host_, final int port_,
+			final String username_, final String password_) {
+		return host.equals(host_) && port == port_ &&
+				username.equals(username_) && password.equals(password_);
+	}
+
+	public final void joinChannel(final int channelId) {
+		final UserState.Builder us = UserState.newBuilder();
+		us.setSession(session);
+		us.setChannelId(channelId);
+		try {
+			sendMessage(MessageType.UserState, us);
+		} catch (final IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	@Override
+	public final void run() {
+		connectionHost.setConnectionState(ConnectionState.Connecting);
+
+		try {
+			SSLSocket socket_;
+
+			synchronized (stateLock) {
+				final SSLContext ctx_ = SSLContext.getInstance("TLS");
+				ctx_
+						.init(
+								null,
+								new TrustManager[] { new LocalSSLTrustManager() },
+								null);
+				final SSLSocketFactory factory = ctx_.getSocketFactory();
+				socket_ = (SSLSocket) factory.createSocket(host, port);
+				socket_.setUseClientMode(true);
+				socket_.setEnabledProtocols(new String[] { "TLSv1" });
+				socket_.startHandshake();
+
+				connectionHost.setConnectionState(ConnectionState.Connected);
+			}
+
+			handleProtocol(socket_);
+
+			socket_.close();
+		} catch (final NoSuchAlgorithmException e) {
+			e.printStackTrace();
+		} catch (final KeyManagementException e) {
+			e.printStackTrace();
+		} catch (final UnknownHostException e) {
+			e.printStackTrace();
+		} catch (final IOException e) {
+			e.printStackTrace();
+		} catch (final InterruptedException e) {
+			e.printStackTrace();
+		}
+
+		synchronized (stateLock) {
+			connectionHost.setConnectionState(ConnectionState.Disconnected);
+		}
+	}
+
+	public final void sendChannelTextMessage(final String message) {
+		final TextMessage.Builder tmb = TextMessage.newBuilder();
+		tmb.addChannelId(currentChannel.id);
+		tmb.setMessage(message);
+		try {
+			sendMessage(MessageType.TextMessage, tmb);
+		} catch (final IOException e) {
+			e.printStackTrace();
+		}
+
+		final Message msg = new Message();
+		msg.timestamp = System.currentTimeMillis();
+		msg.message = message;
+		msg.channel = currentChannel;
+		msg.direction = Direction.Sent;
+		connectionHost.messageSent(msg);
+	}
+
+	public final void sendMessage(final MessageType t,
+			final MessageLite.Builder b) throws IOException {
+		final MessageLite m = b.build();
+		final short type = (short) t.ordinal();
+		final int length = m.getSerializedSize();
+
+		synchronized (out) {
+			out.writeShort(type);
+			out.writeInt(length);
+			m.writeTo(out);
+		}
+
+		if (t != MessageType.Ping) {
+			Log.i(Globals.LOG_TAG, "<<< " + t);
+		}
+	}
+
+	public final void sendUdpTunnelMessage(final byte[] buffer)
+			throws IOException {
+		final short type = (short) MessageType.UDPTunnel.ordinal();
+		final int length = buffer.length;
+
+		synchronized (out) {
+			out.writeShort(type);
+			out.writeInt(length);
+			out.write(buffer);
+		}
+	}
+
 	private Channel findChannel(final int id) {
 		return channels.get(id);
 	}
@@ -222,11 +236,12 @@ public class MumbleConnection implements Runnable {
 		return users.get(session_);
 	}
 
-	private void handleProtocol(final Socket socket_) throws IOException, InterruptedException {
-
+	private void handleProtocol(final Socket socket_) throws IOException,
+			InterruptedException {
 		synchronized (stateLock) {
-			if (disconnecting)
+			if (disconnecting) {
 				return;
+			}
 
 			out = new DataOutputStream(socket_.getOutputStream());
 			in = new DataInputStream(socket_.getInputStream());
@@ -238,7 +253,7 @@ public class MumbleConnection implements Runnable {
 			final Authenticate.Builder a = Authenticate.newBuilder();
 			a.setUsername(username);
 			a.setPassword(password);
-			a.addCeltVersions(0x8000000b);
+			a.addCeltVersions(supportedCodec);
 
 			sendMessage(MessageType.Version, v);
 			sendMessage(MessageType.Authenticate, a);
@@ -246,18 +261,17 @@ public class MumbleConnection implements Runnable {
 			connectionHost.setConnectionState(ConnectionState.Connected);
 		}
 
-		// Process the stream in separate thread so we can interrupt it if
-		// necessary without interrupting the whole connection thread and
-		// thus allowing us to disconnect cleanly.
+		// Process the stream in separate thread so we can interrupt it if necessary
+		// without interrupting the whole connection thread and thus allowing us to
+		// disconnect cleanly.
 		readingThread = new Thread(new Runnable() {
 			public void run() {
 				byte[] msg = null;
 				try {
 					while (socket_.isConnected() && !disconnecting) {
 
-						// Do the socket read outside of any lock as this is
-						// blocking operation which might take a while and must
-						// be interruptible.
+						// Do the socket read outside of any lock as this is blocking operation
+						// which might take a while and must be interruptible.
 						// Interrupt itself is synchronized through stateLock.
 						final short type = in.readShort();
 						final int length = in.readInt();
@@ -266,23 +280,22 @@ public class MumbleConnection implements Runnable {
 						}
 						in.readFully(msg);
 
-						// Message processing can be done inside stateLock as it
-						// shouldn't involve slow network operations.
+						// Message processing can be done inside stateLock as it shouldn't involve
+						// slow network operations.
 						synchronized (stateLock) {
 							processMsg(MT_CONSTANTS[type], msg);
 						}
 					}
-				} catch (IOException ex) {
+				} catch (final IOException ex) {
 					Log.e(Globals.LOG_TAG, ex.toString());
 				} finally {
 					synchronized (stateLock) {
-						connectionHost.setConnectionState(ConnectionState.Disconnecting);
+						connectionHost
+								.setConnectionState(ConnectionState.Disconnecting);
 						disconnecting = true;
 
-						// The thread is dying so null it. This prevents the
-						// waiting loop from spotting that the thread might
-						// still
-						// be alive briefly after notifyAll.
+						// The thread is dying so null it. This prevents the waiting loop from
+						// spotting that the thread might still be alive briefly after notifyAll.
 						readingThread = null;
 						stateLock.notifyAll();
 					}
@@ -306,7 +319,7 @@ public class MumbleConnection implements Runnable {
 			u = findUser(ts.getActor());
 		}
 
-		Message msg = new Message();
+		final Message msg = new Message();
 		msg.timestamp = System.currentTimeMillis();
 		msg.message = ts.getMessage();
 		msg.actor = u;
@@ -334,9 +347,9 @@ public class MumbleConnection implements Runnable {
 		Log.i(Globals.LOG_TAG, "--- end user list ---");
 	}
 
-	private void processMsg(final MessageType t, final byte[] buffer) throws IOException {
+	private void processMsg(final MessageType t, final byte[] buffer)
+			throws IOException {
 
-		// Some local variable names for use in cases.
 		Channel channel;
 		User user;
 
@@ -346,6 +359,18 @@ public class MumbleConnection implements Runnable {
 			break;
 		case Ping:
 			// ignore
+			break;
+		case CodecVersion:
+			final CodecVersion codecVersion = CodecVersion.parseFrom(buffer);
+			codec = CODEC_NOCODEC;
+			if (codecVersion.hasAlpha() &&
+					codecVersion.getAlpha() == supportedCodec) {
+				codec = CODEC_ALPHA;
+			} else if (codecVersion.hasBeta() &&
+					codecVersion.getBeta() == supportedCodec) {
+				codec = CODEC_BETA;
+			}
+			canSpeak = canSpeak && (codec != CODEC_NOCODEC);
 			break;
 		case ServerSync:
 			final ServerSync ss = ServerSync.parseFrom(buffer);
@@ -364,8 +389,8 @@ public class MumbleConnection implements Runnable {
 
 			final UserState.Builder usb = UserState.newBuilder();
 			usb.setSession(session);
-			// usb.setPluginContext(ByteString
-			// .copyFromUtf8("Manual placement\000test"));
+//			usb.setPluginContext(ByteString
+//					.copyFromUtf8("Manual placement\000test"));
 			sendMessage(MessageType.UserState, usb);
 
 			connectionHost.currentChannelChanged();
@@ -399,7 +424,6 @@ public class MumbleConnection implements Runnable {
 			final UserState us = UserState.parseFrom(buffer);
 			user = findUser(us.getSession());
 			if (user != null) {
-
 				if (us.hasChannelId()) {
 					channel = channels.get(us.getChannelId());
 					user.setChannel(channel);
@@ -413,14 +437,16 @@ public class MumbleConnection implements Runnable {
 				if (us.getSession() == session) {
 					if (us.hasMute() || us.hasSuppress()) {
 						if (us.hasMute()) {
-							canSpeak = !us.getMute();
+							canSpeak = (codec != CODEC_NOCODEC) &&
+									!us.getMute();
 						}
 						if (us.hasSuppress()) {
-							canSpeak = !us.getSuppress();
+							canSpeak = (codec != CODEC_NOCODEC) &&
+									!us.getSuppress();
 						}
 					}
 				}
-				
+
 				connectionHost.userUpdated(user);
 				break;
 			}
@@ -444,7 +470,6 @@ public class MumbleConnection implements Runnable {
 
 			connectionHost.channelUpdated(user.getChannel());
 			connectionHost.userRemoved(user.session);
-
 			break;
 		case TextMessage:
 			handleTextMessage(TextMessage.parseFrom(buffer));
@@ -462,7 +487,8 @@ public class MumbleConnection implements Runnable {
 		final int flags = buffer[0] & 0x1f;
 
 		// There is no speex support...
-		if (type != UDPMESSAGETYPE_UDPVOICECELTALPHA && type != UDPMESSAGETYPE_UDPVOICECELTBETA) {
+		if (type != UDPMESSAGETYPE_UDPVOICECELTALPHA &&
+				type != UDPMESSAGETYPE_UDPVOICECELTBETA) {
 			return;
 		}
 
@@ -478,5 +504,4 @@ public class MumbleConnection implements Runnable {
 
 		ao.addFrameToBuffer(u, pds, flags);
 	}
-
 }

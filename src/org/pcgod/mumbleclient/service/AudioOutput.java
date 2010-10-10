@@ -1,5 +1,6 @@
 package org.pcgod.mumbleclient.service;
 
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -125,7 +126,7 @@ class AudioOutput implements Runnable {
 			if (mix.size() > 0) {
 
 				// Reset mix buffer.
-				for (int i = 0; i < out.length; i++) { out[i] = 0; }
+				Arrays.fill(out, 0);
 
 				// Sum the buffers.
 				for (short[] userBuffer : mix) {

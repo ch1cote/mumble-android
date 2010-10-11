@@ -1,149 +1,164 @@
 package org.pcgod.mumbleclient.service;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 
-import org.pcgod.mumbleclient.jni.Native;
+import org.pcgod.mumbleclient.service.AudioUser.PacketReadyHandler;
 import org.pcgod.mumbleclient.service.model.User;
 
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.AudioTrack;
+
+/**
+ * Audio output thread.
+ * Handles the playback of UDP packets added with addFrameToBuffer.
+ *
+ * @author pcgod, Rantanen
+ */
 class AudioOutput implements Runnable {
-	static long celtDecoder;
-	private final ConcurrentHashMap<User, AudioUser> outputMap = new ConcurrentHashMap<User, AudioUser>();
-	private final short[] out;
-	private final short[] tmpOut;
-	private boolean running;
-	//private final AudioTrack at;
-	private final long celtMode;
-	private final ReentrantLock lock = new ReentrantLock();
-	private final Condition notEmpty = lock.newCondition();
-	private final ArrayList<AudioUser> mix = new ArrayList<AudioUser>();
-	private final ArrayList<User> del = new ArrayList<User>();
-	private static int bufferSize = MumbleConnection.FRAME_SIZE;
 
-	AudioOutput() {
-//		double minbuffer = Math.max(AudioTrack
-//				.getMinBufferSize(MumbleConnection.SAMPLE_RATE,
-//						AudioFormat.CHANNEL_CONFIGURATION_MONO,
-//						AudioFormat.ENCODING_PCM_16BIT), bufferSize);
-//		Log.i("mumbleclient", "buffer size: " + minbuffer);
-//		bufferSize = (int) (Math.ceil(minbuffer / MumbleConnection.FRAME_SIZE) * MumbleConnection.FRAME_SIZE);
-//		Log.i("mumbleclient", "new buffer size: " + bufferSize);
+	private final PacketReadyHandler packetReadyHandler = new PacketReadyHandler() {
 
-//		at = new AudioTrack(AudioManager.STREAM_MUSIC,
-//				MumbleConnection.SAMPLE_RATE,
-//				AudioFormat.CHANNEL_CONFIGURATION_MONO,
-//				AudioFormat.ENCODING_PCM_16BIT, bufferSize * 20,
-//				AudioTrack.MODE_STREAM);
-		out = new short[bufferSize];
-		tmpOut = new short[bufferSize];
-		celtMode = Native.celt_mode_create(MumbleConnection.SAMPLE_RATE,
-				MumbleConnection.FRAME_SIZE);
-		celtDecoder = Native.celt_decoder_create(celtMode, 1);
+		@Override
+		public void packetReady(AudioUser user) {
+			synchronized(userPackets) {
+				if (!userPackets.containsKey(user.getUser())) {
+					userPackets.put(user.getUser(), user);
+					userPackets.notify();
+				}
+			}
+		}
+	};
+
+	private boolean shouldRun;
+	private final AudioTrack at;
+	private final int bufferSize;
+
+	private final Map<User, AudioUser> userPackets = new HashMap<User, AudioUser>();
+	private final Map<User, AudioUser> users = new HashMap<User, AudioUser>();
+
+	public AudioOutput() {
+		int minBufferSize = AudioTrack.getMinBufferSize(
+			MumbleConnection.SAMPLE_RATE,
+			AudioFormat.CHANNEL_CONFIGURATION_MONO,
+			AudioFormat.ENCODING_PCM_16BIT);
+
+		// Double the buffer size to reduce stuttering.
+		minBufferSize *= 2;
+
+		// Resolve the minimum frame count that fills the minBuffer requirement.
+		final int frameCount = (int) Math.ceil((double) minBufferSize /
+											   MumbleConnection.FRAME_SIZE);
+
+		bufferSize = frameCount * MumbleConnection.FRAME_SIZE;
+
+		at = new AudioTrack(
+			AudioManager.STREAM_MUSIC,
+			MumbleConnection.SAMPLE_RATE,
+			AudioFormat.CHANNEL_CONFIGURATION_MONO,
+			AudioFormat.ENCODING_PCM_16BIT,
+			bufferSize,
+			AudioTrack.MODE_STREAM);
+
+		// Set this here so this.start(); this.shouldRun = false; doesn't
+		// result in run() setting shouldRun to true afterwards and continuing
+		// running.
+		shouldRun = true;
 	}
 
-	public void addFrameToBuffer(final User u, final PacketDataStream pds,
-			final int flags) {
-		AudioUser au = outputMap.get(u);
-		if (au == null) {
-			au = new AudioUser(u);
-			outputMap.put(u, au);
+	public void addFrameToBuffer(
+		final User u,
+		final PacketDataStream pds,
+		final int flags) {
+
+		AudioUser user;
+
+		user = users.get(u);
+		if (user == null) {
+			user = new AudioUser(u);
+			users.put(u, user);
+			// Don't add the user to userPackets yet. The collection should
+			// have only users with ready frames. Since this method is
+			// called only from the TCP connection thread it will never
+			// create a new AudioUser while a previous one is still decoding.
 		}
 
-		au.addFrameToBuffer(pds, flags);
-//		lock.lock();
-//		notEmpty.signal();
-//		lock.unlock();
+		user.addFrameToBuffer(pds, packetReadyHandler);
+	}
+
+	private void audioLoop() throws InterruptedException {
+		final float[] out = new float[MumbleConnection.FRAME_SIZE];
+		final short[] clipOut = new short[MumbleConnection.FRAME_SIZE];
+		final List<AudioUser> mix = new LinkedList<AudioUser>();
+
+		at.play();
+		while (shouldRun) {
+			mix.clear();
+
+			synchronized (userPackets) {
+				final Iterator<AudioUser> i = userPackets.values().iterator();
+				while (i.hasNext()) {
+					final AudioUser user = i.next();
+					if (user.hasFrame()) {
+						mix.add(user);
+					} else {
+						i.remove();
+					}
+				}
+			}
+
+			// If there is output, play it now.
+			if (mix.size() > 0) {
+				// Reset mix buffer.
+				Arrays.fill(out, 0);
+
+				// Sum the buffers.
+				for (final AudioUser user : mix) {
+					for (int i = 0; i < out.length; i++) {
+						out[i] += user.lastFrame[i];
+					}
+				}
+
+				// Clip buffer for real output.
+				for (int i = 0; i < MumbleConnection.FRAME_SIZE; i++) {
+					clipOut[i] = (short) (Short.MAX_VALUE * (out[i] < -1.0f ? -1.0f
+						: (out[i] > 1.0f ? 1.0f : out[i])));
+				}
+
+				at.write(clipOut, 0, MumbleConnection.FRAME_SIZE);
+
+			}
+
+			// Wait for more input.
+			synchronized (userPackets) {
+				while (shouldRun && userPackets.isEmpty()) {
+					userPackets.wait();
+				}
+			}
+		}
+		at.flush();
+		at.stop();
 	}
 
 	public void run() {
-		//android.os.Process
-		//		.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
-
-		//at.play();
-		running = true;
-		while (running) {
-//			final boolean mixed = mix(bufferSize);
-//			if (mixed) {
-//				at.write(out, 0, bufferSize);
-			//at.flush();
-//			} else {
-			try {
-				lock.lock();
-				if (outputMap.isEmpty()) {
-//						at.stop();
-					notEmpty.await();
-				}
-			} catch (final InterruptedException e) {
-				e.printStackTrace();
-				running = false;
-			} finally {
-				lock.unlock();
-//					at.play();
-			}
-//			}
-			lock.lock();
-			try {
-				notEmpty.await();
-			} catch (final InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			lock.unlock();
+		android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+		try {
+			audioLoop();
+		} catch (final InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
-//		at.stop();
-//		at.release();
 	}
 
-	private boolean mix(final int nsamp) {
-		mix.clear();
-		del.clear();
-
-		for (final Enumeration<User> e = outputMap.keys(); e.hasMoreElements();) {
-			final User u = e.nextElement();
-			final AudioUser au = outputMap.get(u);
-			if (au.needSamples(nsamp)) {
-				mix.add(au);
-			} else {
-				del.add(u);
-			}
+	public void stop() {
+		shouldRun = false;
+		synchronized (userPackets) {
+			userPackets.notify();
 		}
-
-		Arrays.fill(tmpOut, (short) 0);
-		Arrays.fill(out, (short) 0);
-		if (!mix.isEmpty()) {
-			for (final AudioUser au : mix) {
-				final short[] pfBuffer = au.pfBuffer;
-
-				for (int i = 0; i < nsamp; ++i) {
-					tmpOut[i] += pfBuffer[i];
-				}
-			}
-
-			for (int i = 0; i < nsamp; ++i) {
-				//out[i] = (short)(Short.MAX_VALUE * (tmpOut[i] < -1.0f ? -1.0f : (tmpOut[i] > 1.0f ? 1.0f : tmpOut[i])));
-				//out[i] = (short)(Short.MAX_VALUE * tmpOut[i]);
-				out[i] = tmpOut[i];
-			}
-		}
-
-		for (final User u : del) {
-			removeBuffer(u);
-		}
-
-		return !mix.isEmpty();
-	}
-
-	private void removeBuffer(final User u) {
-		outputMap.remove(u);
-	}
-
-	@Override
-	protected final void finalize() {
-		Native.celt_decoder_destroy(celtDecoder);
-		Native.celt_mode_destroy(celtMode);
 	}
 }

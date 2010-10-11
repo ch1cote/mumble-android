@@ -122,7 +122,6 @@ class AudioOutput implements Runnable {
 					for (int i = 0; i < out.length; i++) {
 						out[i] += user.lastFrame[i];
 					}
-					user.freeFrame(user.lastFrame);
 				}
 
 				// Clip buffer for real output.

@@ -105,6 +105,30 @@ public class ChannelList extends ConnectedActivity {
 	 * Handles broadcasts from MumbleService
 	 */
 	private class ChannelBroadcastReceiver extends BroadcastReceiver {
+		private final void onConnectionStateChanged() {
+			switch (mService.getConnectionState()) {
+			case Connecting:
+				Log.i(Globals.LOG_TAG, "ChannelList: Connecting");
+				onConnecting();
+				break;
+			case Connected:
+				Log.i(Globals.LOG_TAG, "ChannelList: Connected");
+
+				// The service might have been fast enough to properly connect
+				// before the broadcast was resolved. Try calling onConnected
+				// just in case.
+				onConnected();
+				break;
+			case Disconnected:
+			case Disconnecting:
+				Log.i(Globals.LOG_TAG, "ChannelList: Disconnected");
+				onDisconnected();
+				break;
+			default:
+				Assert.fail("Unknown connection state");
+			}
+		}
+
 		@Override
 		public final void onReceive(final Context ctx, final Intent i) {
 			final String action = i.getAction();
@@ -183,30 +207,6 @@ public class ChannelList extends ConnectedActivity {
 			}
 
 			Assert.fail("Unknown intent broadcast");
-		}
-
-		private final void onConnectionStateChanged() {
-			switch (mService.getConnectionState()) {
-			case Connecting:
-				Log.i(Globals.LOG_TAG, "ChannelList: Connecting");
-				onConnecting();
-				break;
-			case Connected:
-				Log.i(Globals.LOG_TAG, "ChannelList: Connected");
-
-				// The service might have been fast enough to properly connect
-				// before the broadcast was resolved. Try calling onConnected
-				// just in case.
-				onConnected();
-				break;
-			case Disconnected:
-			case Disconnecting:
-				Log.i(Globals.LOG_TAG, "ChannelList: Disconnected");
-				onDisconnected();
-				break;
-			default:
-				Assert.fail("Unknown connection state");
-			}
 		}
 	}
 
@@ -315,43 +315,6 @@ public class ChannelList extends ConnectedActivity {
 		}
 	};
 
-	@Override
-	public final boolean onCreateOptionsMenu(final Menu menu) {
-		menu.add(0, MENU_CHAT, 0, "Chat").setIcon(
-				android.R.drawable.ic_btn_speak_now);
-		return true;
-	}
-
-	@Override
-	public boolean onKeyDown(final int keyCode, final KeyEvent event) {
-		if (keyCode == KeyEvent.KEYCODE_BACK && event.getRepeatCount() == 0) {
-			final AlertDialog.Builder b = new AlertDialog.Builder(this);
-			b.setIcon(android.R.drawable.ic_dialog_alert);
-			b.setTitle("Disconnect");
-			b.setMessage("Are you sure you want to disconnect from Mumble?");
-			b.setPositiveButton(android.R.string.yes, onDisconnectConfirm);
-			b.setNegativeButton(android.R.string.no, null);
-			mDisconnectDialog = b.show();
-
-			return true;
-		}
-
-		return super.onKeyDown(keyCode, event);
-	}
-
-	@Override
-	public final boolean onMenuItemSelected(final int featureId,
-			final MenuItem item) {
-		switch (item.getItemId()) {
-		case MENU_CHAT:
-			final Intent i = new Intent(this, ChatActivity.class);
-			startActivity(i);
-			return true;
-		default:
-			return super.onMenuItemSelected(featureId, item);
-		}
-	}
-
 	private void cleanDialogs() {
 		if (mChannelSelectDialog != null) {
 			mChannelSelectDialog.dismiss();
@@ -366,25 +329,6 @@ public class ChannelList extends ConnectedActivity {
 		if (mDisconnectDialog != null) {
 			mDisconnectDialog.dismiss();
 			mDisconnectDialog = null;
-		}
-	}
-
-	/**
-	 * Handles activity initialization when the Service is connecting.
-	 */
-	private void onConnecting() {
-		if (mProgressDialog == null) {
-			mProgressDialog = ProgressDialog.show(ChannelList.this,
-					getString(R.string.connectionProgressTitle),
-					getString(R.string.connectionProgressConnectingMessage),
-					true, true, new OnCancelListener() {
-						@Override
-						public void onCancel(DialogInterface dialog) {
-							mService.disconnect();
-							mProgressDialog
-									.setMessage(getString(R.string.connectionProgressDisconnectingMessage));
-						}
-					});
 		}
 	}
 
@@ -435,57 +379,23 @@ public class ChannelList extends ConnectedActivity {
 		channelNameText.setText(channelName);
 	}
 
-	private void onDisconnected() {
-		cleanDialogs();
-		finish();
-	}
-
-	private void setChannel(final Channel channel) {
-		visibleChannel = channel;
-
-		synchronizeControls();
-		updateUserList();
-	}
-
-	private void synchronizeControls() {
-		if (!isConnected) {
-			findViewById(R.id.connectionViewRoot).setVisibility(View.GONE);
-			speakButton.setEnabled(false);
-			joinButton.setEnabled(false);
-			channelNameText.setText("(Not connected)");
-		} else {
-			findViewById(R.id.connectionViewRoot).setVisibility(View.VISIBLE);
-			if (mService.getCurrentChannel().id == visibleChannel.id) {
-				speakButton.setVisibility(View.VISIBLE);
-				joinButton.setVisibility(View.GONE);
-				speakButton.setEnabled(mService.canSpeak());
-				speakButton.setChecked(mService.isRecording());
-			} else {
-				speakButton.setVisibility(View.GONE);
-				joinButton.setVisibility(View.VISIBLE);
-			}
-			channelNameText.setText(visibleChannel.name);
+	/**
+	 * Handles activity initialization when the Service is connecting.
+	 */
+	private void onConnecting() {
+		if (mProgressDialog == null) {
+			mProgressDialog = ProgressDialog.show(ChannelList.this,
+					getString(R.string.connectionProgressTitle),
+					getString(R.string.connectionProgressConnectingMessage),
+					true, true, new OnCancelListener() {
+						@Override
+						public void onCancel(DialogInterface dialog) {
+							mService.disconnect();
+							mProgressDialog
+									.setMessage(getString(R.string.connectionProgressDisconnectingMessage));
+						}
+					});
 		}
-	}
-
-	private void updateUserList() {
-		channelUsers.clear();
-
-		if (isConnected) {
-			final List<User> allUsers = mService.getUserList();
-			for (final User u : allUsers) {
-				if (u.getChannel().id == visibleChannel.id) {
-					channelUsers.add(u);
-				}
-			}
-
-			((UserAdapter) channelUsersList.getAdapter())
-					.notifyDataSetChanged();
-		}
-
-		final boolean showList = (channelUsers.size() > 0);
-		channelUsersList.setVisibility(showList ? View.VISIBLE : View.GONE);
-		noUsersText.setVisibility(showList ? View.GONE : View.VISIBLE);
 	}
 
 	@Override
@@ -519,6 +429,48 @@ public class ChannelList extends ConnectedActivity {
 		// inputs isn't supported.
 		speakerCheckBox.setEnabled(false);
 		speakerCheckBox.setVisibility(View.GONE);
+	}
+
+	@Override
+	public final boolean onCreateOptionsMenu(final Menu menu) {
+		menu.add(0, MENU_CHAT, 0, "Chat").setIcon(
+				android.R.drawable.ic_btn_speak_now);
+		return true;
+	}
+
+	private void onDisconnected() {
+		cleanDialogs();
+		finish();
+	}
+
+	@Override
+	public boolean onKeyDown(final int keyCode, final KeyEvent event) {
+		if (keyCode == KeyEvent.KEYCODE_BACK && event.getRepeatCount() == 0) {
+			final AlertDialog.Builder b = new AlertDialog.Builder(this);
+			b.setIcon(android.R.drawable.ic_dialog_alert);
+			b.setTitle("Disconnect");
+			b.setMessage("Are you sure you want to disconnect from Mumble?");
+			b.setPositiveButton(android.R.string.yes, onDisconnectConfirm);
+			b.setNegativeButton(android.R.string.no, null);
+			mDisconnectDialog = b.show();
+
+			return true;
+		}
+
+		return super.onKeyDown(keyCode, event);
+	}
+
+	@Override
+	public final boolean onMenuItemSelected(final int featureId,
+			final MenuItem item) {
+		switch (item.getItemId()) {
+		case MENU_CHAT:
+			final Intent i = new Intent(this, ChatActivity.class);
+			startActivity(i);
+			return true;
+		default:
+			return super.onMenuItemSelected(featureId, item);
+		}
 	}
 
 	@Override
@@ -579,5 +531,53 @@ public class ChannelList extends ConnectedActivity {
 		default:
 			Assert.fail("Unknown connection state");
 		}
+	}
+
+	private void setChannel(final Channel channel) {
+		visibleChannel = channel;
+
+		synchronizeControls();
+		updateUserList();
+	}
+
+	private void synchronizeControls() {
+		if (!isConnected) {
+			findViewById(R.id.connectionViewRoot).setVisibility(View.GONE);
+			speakButton.setEnabled(false);
+			joinButton.setEnabled(false);
+			channelNameText.setText("(Not connected)");
+		} else {
+			findViewById(R.id.connectionViewRoot).setVisibility(View.VISIBLE);
+			if (mService.getCurrentChannel().id == visibleChannel.id) {
+				speakButton.setVisibility(View.VISIBLE);
+				joinButton.setVisibility(View.GONE);
+				speakButton.setEnabled(mService.canSpeak());
+				speakButton.setChecked(mService.isRecording());
+			} else {
+				speakButton.setVisibility(View.GONE);
+				joinButton.setVisibility(View.VISIBLE);
+			}
+			channelNameText.setText(visibleChannel.name);
+		}
+	}
+
+	private void updateUserList() {
+		channelUsers.clear();
+
+		if (isConnected) {
+			final List<User> allUsers = mService.getUserList();
+			for (final User u : allUsers) {
+				if (u.getChannel().id == visibleChannel.id) {
+					channelUsers.add(u);
+				}
+			}
+
+			((UserAdapter) channelUsersList.getAdapter())
+					.notifyDataSetChanged();
+		}
+
+		final boolean showList = (channelUsers.size() > 0);
+		channelUsersList.setVisibility(showList ? View.VISIBLE : View.GONE);
+		noUsersText.setVisibility(showList ? View.GONE : View.VISIBLE);
 	}
 }

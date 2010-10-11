@@ -11,11 +11,11 @@ import android.util.Log;
 
 /**
  * Base class for activities that want to access the MumbleService
- * 
+ *
  * Note: Remember to consider ConnectedListActivity when modifying this class.
- * 
+ *
  * @author Rantanen
- * 
+ *
  */
 public class ConnectedActivity extends Activity {
 	ServiceConnection mServiceConn = new ServiceConnection() {

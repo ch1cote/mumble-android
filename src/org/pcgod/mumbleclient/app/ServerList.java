@@ -112,77 +112,39 @@ public class ServerList extends ConnectedListActivity {
 	private static final int MENU_EXIT = Menu.FIRST + 3;
 	private static final int MENU_CONNECT_SERVER = Menu.FIRST + 4;
 
-	@Override
-	public final boolean onContextItemSelected(final MenuItem item) {
-		final AdapterContextMenuInfo info = (AdapterContextMenuInfo) item
-				.getMenuInfo();
-		switch (item.getItemId()) {
-		case MENU_CONNECT_SERVER:
-			onListItemClick(getListView(), getCurrentFocus(), info.position,
-					getListAdapter().getItemId(info.position));
-			return true;
-		case MENU_EDIT_SERVER:
-			editServer(getListAdapter().getItemId(info.position));
-			return true;
-		case MENU_DELETE_SERVER:
-			serverToDeleteId = info.id;
-			showDialog(DIALOG_DELETE_SERVER);
-			return true;
-		default:
-			return super.onContextItemSelected(item);
-		}
-	}
-
-	@Override
-	public final void onCreateContextMenu(final ContextMenu menu, final View v,
-			final ContextMenuInfo menuInfo) {
-		super.onCreateContextMenu(menu, v, menuInfo);
-
-		final int menuPosition = ((AdapterView.AdapterContextMenuInfo) menuInfo).position;
-		final int serverId = (int) getListView().getItemIdAtPosition(
-				menuPosition);
-		final Cursor c = dbAdapter.fetchServer(serverId);
-		final String name = getServerName(c);
-		c.close();
-		menu.setHeaderTitle(name);
-
-		menu.add(0, MENU_CONNECT_SERVER, 1, "Connect").setIcon(
-				android.R.drawable.ic_menu_view);
-		menu.add(0, MENU_EDIT_SERVER, 1, "Edit").setIcon(
-				android.R.drawable.ic_menu_edit);
-		menu.add(0, MENU_DELETE_SERVER, 1, "Delete").setIcon(
-				android.R.drawable.ic_menu_delete);
-	}
-
-	@Override
-	public final boolean onCreateOptionsMenu(final Menu menu) {
-		super.onCreateOptionsMenu(menu);
-		menu.add(0, MENU_ADD_SERVER, 0, "Add Server").setIcon(
-				android.R.drawable.ic_menu_add);
-		menu.add(0, MENU_EXIT, 0, "Exit").setIcon(
-				android.R.drawable.ic_menu_close_clear_cancel);
-		return true;
-	}
-
-	@Override
-	public final boolean onMenuItemSelected(final int featureId,
-			final MenuItem item) {
-		switch (item.getItemId()) {
-		case MENU_ADD_SERVER:
-			addServer();
-			return true;
-		case MENU_EXIT:
-			finish();
-			System.exit(0);
-			return true;
-		default:
-			return super.onMenuItemSelected(featureId, item);
-		}
-	}
-
 	private void addServer() {
 		final Intent i = new Intent(this, ServerInfo.class);
 		startActivityForResult(i, ACTIVITY_ADD_SERVER);
+	}
+
+	/**
+	 * Starts connecting to a server.
+	 *
+	 * @param id
+	 */
+	protected final void connectServer(final long id) {
+		final Cursor c = dbAdapter.fetchServer(id);
+		final String host = c.getString(c
+				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_HOST));
+		final int port = c.getInt(c
+				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PORT));
+		final String username = c.getString(c
+				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_USERNAME));
+		final String password = c.getString(c
+				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PASSWORD));
+		c.close();
+
+		final Intent connectionIntent = new Intent(this, MumbleService.class);
+		connectionIntent.setAction(MumbleService.ACTION_CONNECT);
+		connectionIntent.putExtra(MumbleService.EXTRA_HOST, host);
+		connectionIntent.putExtra(MumbleService.EXTRA_PORT, port);
+		connectionIntent.putExtra(MumbleService.EXTRA_USERNAME, username);
+		connectionIntent.putExtra(MumbleService.EXTRA_PASSWORD, password);
+		startService(connectionIntent);
+		//mService.setServer(host, port, username, password);
+
+		final Intent i = new Intent(this, ChannelList.class);
+		startActivityForResult(i, ACTIVITY_CHANNEL_LIST);
 	}
 
 	private Dialog createDeleteServerDialog() {
@@ -218,6 +180,10 @@ public class ServerList extends ConnectedListActivity {
 		startActivityForResult(i, ACTIVITY_ADD_SERVER);
 	}
 
+	void fillList() {
+		setListAdapter(new ServerAdapter(this, dbAdapter));
+	}
+
 	private String getServerName(final Cursor c) {
 		String name = c.getString(c
 				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_NAME));
@@ -231,41 +197,32 @@ public class ServerList extends ConnectedListActivity {
 		return name;
 	}
 
-	/**
-	 * Starts connecting to a server.
-	 *
-	 * @param id
-	 */
-	protected final void connectServer(final long id) {
-		final Cursor c = dbAdapter.fetchServer(id);
-		final String host = c.getString(c
-				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_HOST));
-		final int port = c.getInt(c
-				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PORT));
-		final String username = c.getString(c
-				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_USERNAME));
-		final String password = c.getString(c
-				.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PASSWORD));
-		c.close();
-
-		final Intent connectionIntent = new Intent(this, MumbleService.class);
-		connectionIntent.setAction(MumbleService.ACTION_CONNECT);
-		connectionIntent.putExtra(MumbleService.EXTRA_HOST, host);
-		connectionIntent.putExtra(MumbleService.EXTRA_PORT, port);
-		connectionIntent.putExtra(MumbleService.EXTRA_USERNAME, username);
-		connectionIntent.putExtra(MumbleService.EXTRA_PASSWORD, password);
-		startService(connectionIntent);
-		//mService.setServer(host, port, username, password);
-
-		final Intent i = new Intent(this, ChannelList.class);
-		startActivityForResult(i, ACTIVITY_CHANNEL_LIST);
-	}
-
 	@Override
 	protected final void onActivityResult(final int requestCode,
 			final int resultCode, final Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
 		fillList();
+	}
+
+	@Override
+	public final boolean onContextItemSelected(final MenuItem item) {
+		final AdapterContextMenuInfo info = (AdapterContextMenuInfo) item
+				.getMenuInfo();
+		switch (item.getItemId()) {
+		case MENU_CONNECT_SERVER:
+			onListItemClick(getListView(), getCurrentFocus(), info.position,
+					getListAdapter().getItemId(info.position));
+			return true;
+		case MENU_EDIT_SERVER:
+			editServer(getListAdapter().getItemId(info.position));
+			return true;
+		case MENU_DELETE_SERVER:
+			serverToDeleteId = info.id;
+			showDialog(DIALOG_DELETE_SERVER);
+			return true;
+		default:
+			return super.onContextItemSelected(item);
+		}
 	}
 
 	@Override
@@ -282,6 +239,27 @@ public class ServerList extends ConnectedListActivity {
 	}
 
 	@Override
+	public final void onCreateContextMenu(final ContextMenu menu, final View v,
+			final ContextMenuInfo menuInfo) {
+		super.onCreateContextMenu(menu, v, menuInfo);
+
+		final int menuPosition = ((AdapterView.AdapterContextMenuInfo) menuInfo).position;
+		final int serverId = (int) getListView().getItemIdAtPosition(
+				menuPosition);
+		final Cursor c = dbAdapter.fetchServer(serverId);
+		final String name = getServerName(c);
+		c.close();
+		menu.setHeaderTitle(name);
+
+		menu.add(0, MENU_CONNECT_SERVER, 1, "Connect").setIcon(
+				android.R.drawable.ic_menu_view);
+		menu.add(0, MENU_EDIT_SERVER, 1, "Edit").setIcon(
+				android.R.drawable.ic_menu_edit);
+		menu.add(0, MENU_DELETE_SERVER, 1, "Delete").setIcon(
+				android.R.drawable.ic_menu_delete);
+	}
+
+	@Override
 	protected final Dialog onCreateDialog(final int id) {
 		Dialog d;
 		switch (id) {
@@ -292,6 +270,16 @@ public class ServerList extends ConnectedListActivity {
 			d = null;
 		}
 		return d;
+	}
+
+	@Override
+	public final boolean onCreateOptionsMenu(final Menu menu) {
+		super.onCreateOptionsMenu(menu);
+		menu.add(0, MENU_ADD_SERVER, 0, "Add Server").setIcon(
+				android.R.drawable.ic_menu_add);
+		menu.add(0, MENU_EXIT, 0, "Exit").setIcon(
+				android.R.drawable.ic_menu_close_clear_cancel);
+		return true;
 	}
 
 	@Override
@@ -309,7 +297,19 @@ public class ServerList extends ConnectedListActivity {
 		connectServer(id);
 	}
 
-	void fillList() {
-		setListAdapter(new ServerAdapter(this, dbAdapter));
+	@Override
+	public final boolean onMenuItemSelected(final int featureId,
+			final MenuItem item) {
+		switch (item.getItemId()) {
+		case MENU_ADD_SERVER:
+			addServer();
+			return true;
+		case MENU_EXIT:
+			finish();
+			System.exit(0);
+			return true;
+		default:
+			return super.onMenuItemSelected(featureId, item);
+		}
 	}
 }

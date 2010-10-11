@@ -71,6 +71,49 @@ public class ChatActivity extends ConnectedActivity {
 
 	private ChatBroadcastReceiver bcReceiver;
 
+	void addMessage(final Message msg) {
+		final StringBuilder sb = new StringBuilder();
+		sb.append("[");
+		sb.append(DateUtils.formatDateTime(this, msg.timestamp,
+				DateUtils.FORMAT_SHOW_TIME));
+		sb.append("]");
+
+		if (msg.direction == Direction.Sent) {
+			sb.append("To ");
+			sb.append(msg.channel.name);
+		} else {
+			if (msg.channelIds > 0) {
+				sb.append("(C) ");
+			}
+			if (msg.treeIds > 0) {
+				sb.append("(T) ");
+			}
+
+			if (msg.actor != null) {
+				sb.append(msg.actor.name);
+			} else {
+				sb.append("Server");
+			}
+		}
+		sb.append(": ");
+		sb.append(msg.message);
+		sb.append("\n");
+		chatText.append(sb.toString());
+	}
+
+	@Override
+	protected void onCreate(final Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.chat_view);
+
+		chatText = (TextView) findViewById(R.id.chatText);
+		chatText.setMovementMethod(ScrollingMovementMethod.getInstance());
+		chatTextEdit = (EditText) findViewById(R.id.chatTextEdit);
+		chatTextEdit.setOnEditorActionListener(chatTextEditActionEvent);
+		findViewById(R.id.send_button).setOnClickListener(sendOnClickEvent);
+		updateText();
+	}
+
 	@Override
 	public final boolean onCreateOptionsMenu(final Menu menu) {
 		menu.add(0, MENU_CLEAR, 0, "Clear").setIcon(
@@ -88,19 +131,6 @@ public class ChatActivity extends ConnectedActivity {
 		default:
 			return super.onMenuItemSelected(featureId, item);
 		}
-	}
-
-	@Override
-	protected void onCreate(final Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-		setContentView(R.layout.chat_view);
-
-		chatText = (TextView) findViewById(R.id.chatText);
-		chatText.setMovementMethod(ScrollingMovementMethod.getInstance());
-		chatTextEdit = (EditText) findViewById(R.id.chatTextEdit);
-		chatTextEdit.setOnEditorActionListener(chatTextEditActionEvent);
-		findViewById(R.id.send_button).setOnClickListener(sendOnClickEvent);
-		updateText();
 	}
 
 	@Override
@@ -132,36 +162,6 @@ public class ChatActivity extends ConnectedActivity {
 				MumbleService.INTENT_CHAT_TEXT_UPDATE);
 		bcReceiver = new ChatBroadcastReceiver();
 		registerReceiver(bcReceiver, ifilter);
-	}
-
-	void addMessage(final Message msg) {
-		final StringBuilder sb = new StringBuilder();
-		sb.append("[");
-		sb.append(DateUtils.formatDateTime(this, msg.timestamp,
-				DateUtils.FORMAT_SHOW_TIME));
-		sb.append("]");
-
-		if (msg.direction == Direction.Sent) {
-			sb.append("To ");
-			sb.append(msg.channel.name);
-		} else {
-			if (msg.channelIds > 0) {
-				sb.append("(C) ");
-			}
-			if (msg.treeIds > 0) {
-				sb.append("(T) ");
-			}
-
-			if (msg.actor != null) {
-				sb.append(msg.actor.name);
-			} else {
-				sb.append("Server");
-			}
-		}
-		sb.append(": ");
-		sb.append(msg.message);
-		sb.append("\n");
-		chatText.append(sb.toString());
 	}
 
 	void sendMessage(final TextView v) {

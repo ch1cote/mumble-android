@@ -294,6 +294,22 @@ public class MumbleService extends Service {
 		}
 	};
 
+	private final AudioOutputHost audioHost = new AudioOutputHost() {
+
+		@Override
+		public void setTalkState(final User user, final int talkState) {
+			handler.post(new Runnable() {
+				@Override
+				public void run() {
+					user.talkingState = talkState;
+					final Bundle b = new Bundle();
+					b.putSerializable(EXTRA_USER, user);
+					sendBroadcast(INTENT_USER_UPDATE, b);
+				}
+			});
+		}
+	};
+
 	private final LocalBinder mBinder = new LocalBinder();
 	final Handler handler = new Handler();
 
@@ -401,6 +417,7 @@ public class MumbleService extends Service {
 
 		mClient = new MumbleConnection(
 			connectionHost,
+			audioHost,
 			host,
 			port,
 			username,
@@ -514,10 +531,12 @@ public class MumbleService extends Service {
 			// TODO check initialized
 			mRecordThread = new Thread(new RecordThread(this), "record");
 			mRecordThread.start();
+			audioHost.setTalkState(mClient.currentUser, AudioOutputHost.STATE_TALKING);
 		} else if (mRecordThread != null && !state) {
 			// stop record
 			mRecordThread.interrupt();
 			mRecordThread = null;
+			audioHost.setTalkState(mClient.currentUser, AudioOutputHost.STATE_PASSIVE);
 		}
 	}
 

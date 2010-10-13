@@ -112,7 +112,6 @@ public class UserListAdapter extends BaseAdapter {
 		v.setTag(u.session);
 
 		refreshElements(v, u);
-
 		return v;
 	}
 
@@ -179,7 +178,6 @@ public class UserListAdapter extends BaseAdapter {
 				// Since we just replaced a user we can update view without
 				// full refresh.
 				refreshUserAtPosition(oldLocation, user);
-
 			} else {
 
 				removeVisibleUser(oldLocation);

@@ -35,6 +35,7 @@ import org.pcgod.mumbleclient.Globals;
 import org.pcgod.mumbleclient.service.MumbleConnectionHost.ConnectionState;
 import org.pcgod.mumbleclient.service.audio.AudioOutput;
 import org.pcgod.mumbleclient.service.audio.AudioOutputHost;
+import org.pcgod.mumbleclient.service.audio.AudioOutputSettings;
 import org.pcgod.mumbleclient.service.model.Channel;
 import org.pcgod.mumbleclient.service.model.Message;
 import org.pcgod.mumbleclient.service.model.User;
@@ -99,6 +100,7 @@ public class MumbleConnection implements Runnable {
 	public int codec = CODEC_NOCODEC;
 	private final MumbleConnectionHost connectionHost;
 	private final AudioOutputHost audioHost;
+	private final AudioOutputSettings audioSettings;
 
 	private DataInputStream in;
 	private DataOutputStream out;
@@ -149,7 +151,7 @@ public class MumbleConnection implements Runnable {
 	public MumbleConnection(final MumbleConnectionHost connectionHost_,
 		final AudioOutputHost audioHost_,
 		final String host_, final int port_, final String username_,
-		final String password_) {
+		final String password_, AudioOutputSettings audioSettings_) {
 
 		connectionHost = connectionHost_;
 		audioHost = audioHost_;
@@ -157,6 +159,7 @@ public class MumbleConnection implements Runnable {
 		port = port_;
 		username = username_;
 		password = password_;
+		audioSettings = audioSettings_;
 
 		connectionHost.setConnectionState(ConnectionState.Connecting);
 	}
@@ -537,9 +540,9 @@ public class MumbleConnection implements Runnable {
 
 			pingThread = new Thread(new PingThread(this), "Ping");
 			pingThread.start();
-			Log.d(Globals.LOG_TAG, ">>> " + t);
+			Log.i(Globals.LOG_TAG, ">>> " + t);
 
-			ao = new AudioOutput(audioHost);
+			ao = new AudioOutput(audioSettings, audioHost);
 			audioOutputThread = new Thread(ao, "audio output");
 			audioOutputThread.start();
 

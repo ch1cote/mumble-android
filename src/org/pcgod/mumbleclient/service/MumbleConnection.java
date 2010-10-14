@@ -3,6 +3,9 @@ package org.pcgod.mumbleclient.service;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.Inet4Address;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.security.KeyManagementException;
@@ -15,6 +18,7 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 
+import junit.framework.Assert;
 import net.sf.mumble.MumbleProto.Authenticate;
 import net.sf.mumble.MumbleProto.ChannelRemove;
 import net.sf.mumble.MumbleProto.ChannelState;
@@ -64,11 +68,26 @@ public class MumbleConnection implements Runnable {
 	public static final int SAMPLE_RATE = 48000;
 	public static final int FRAME_SIZE = SAMPLE_RATE / 100;
 
+	public static final int UDP_BUFFER_SIZE = 2048;
+
+	/**
+	 * The time window during which the last successful UDP ping must have been
+	 * transmitted. If the time since the last successful UDP ping is greater
+	 * than this treshold the connection falls back on TCP tunneling.
+	 *
+	 * NOTE: This is the time when the last successfully received ping was SENT
+	 * by the client.
+	 *
+	 * 6000 gives 1 second reply-time as the ping interval is 5000 seconds
+	 * currently.
+	 */
+	public static final int UDP_PING_TRESHOLD = 6000;
+
 	private static final MessageType[] MT_CONSTANTS = MessageType.class
 			.getEnumConstants();
 
 	private static final int protocolVersion = (1 << 16) | (2 << 8) |
-			(3 & 0xFF);
+												(3 & 0xFF);
 
 	private static final int supportedCodec = 0x8000000b;
 
@@ -83,7 +102,11 @@ public class MumbleConnection implements Runnable {
 
 	private DataInputStream in;
 	private DataOutputStream out;
-	private Thread pingThread;
+	private DatagramSocket udpOut;
+	private long lastUdpPing;
+
+	private Thread tcpPingThread;
+	private Thread udpPingThread;
 	private boolean disconnecting = false;
 
 	private final String host;
@@ -93,7 +116,8 @@ public class MumbleConnection implements Runnable {
 
 	private AudioOutput ao;
 	private Thread audioOutputThread;
-	private Thread readingThread;
+	private Thread udpReaderThread;
+	private Thread tcpReaderThread;
 	private final Object stateLock = new Object();
 	private final CryptState cryptState = new CryptState();
 	private String errorString;
@@ -106,15 +130,21 @@ public class MumbleConnection implements Runnable {
 	 * connection won't be attempted until the thread has been started.
 	 *
 	 * This is to combat an issue where the Service is asked to connect and the
-	 * thread is started but the thread isn't given execution time before another
+	 * thread is started but the thread isn't given execution time before
+	 * another
 	 * activity checks for connection state and finds out the service is in
 	 * Disconnected state.
 	 *
-	 * @param connectionHost_ Host interface for this Connection
-	 * @param host_           Mumble server host address
-	 * @param port_           Mumble server port
-	 * @param username_       Username
-	 * @param password_       Server password
+	 * @param connectionHost_
+	 *            Host interface for this Connection
+	 * @param host_
+	 *            Mumble server host address
+	 * @param port_
+	 *            Mumble server port
+	 * @param username_
+	 *            Username
+	 * @param password_
+	 *            Server password
 	 */
 	public MumbleConnection(final MumbleConnectionHost connectionHost_,
 		final AudioOutputHost audioHost_,
@@ -134,9 +164,11 @@ public class MumbleConnection implements Runnable {
 	public final void disconnect() {
 		disconnecting = true;
 		synchronized (stateLock) {
-			if (readingThread != null) {
-				readingThread.interrupt();
-				readingThread = null;
+			if (tcpReaderThread != null) {
+				tcpReaderThread.interrupt();
+			}
+			if (udpReaderThread != null) {
+				udpReaderThread.interrupt();
 			}
 
 			connectionHost.setConnectionState(ConnectionState.Disconnecting);
@@ -174,23 +206,23 @@ public class MumbleConnection implements Runnable {
 	@Override
 	public final void run() {
 		try {
-			SSLSocket socket_;
+			SSLSocket tcpSocket;
+			DatagramSocket udpSocket;
 
-			synchronized (stateLock) {
-				final SSLContext ctx_ = SSLContext.getInstance("TLS");
-				ctx_.init(null,
-						  new TrustManager[] { new LocalSSLTrustManager() },
-						  null);
-				final SSLSocketFactory factory = ctx_.getSocketFactory();
-				socket_ = (SSLSocket) factory.createSocket(host, port);
-				socket_.setUseClientMode(true);
-				socket_.setEnabledProtocols(new String[] { "TLSv1" });
-				socket_.startHandshake();
+			final SSLContext ctx_ = SSLContext.getInstance("TLS");
+			ctx_.init(null,
+						new TrustManager[] { new LocalSSLTrustManager() },
+						null);
+			final SSLSocketFactory factory = ctx_.getSocketFactory();
+			tcpSocket = (SSLSocket) factory.createSocket(host, port);
+			tcpSocket.setUseClientMode(true);
+			tcpSocket.setEnabledProtocols(new String[] { "TLSv1" });
+			tcpSocket.startHandshake();
 
-				connectionHost.setConnectionState(ConnectionState.Connected);
-			}
+			udpSocket = new DatagramSocket();
+			udpSocket.connect(Inet4Address.getByName(host), port);
 
-			handleProtocol(socket_);
+			handleProtocol(tcpSocket, udpSocket);
 
 			// Clean connection state that might have been initialized.
 			// Do this before closing the socket as the threads could use it.
@@ -199,7 +231,7 @@ public class MumbleConnection implements Runnable {
 				audioOutputThread.join();
 			}
 
-			socket_.close();
+			tcpSocket.close();
 		} catch (final NoSuchAlgorithmException e) {
 			e.printStackTrace();
 		} catch (final KeyManagementException e) {
@@ -254,12 +286,43 @@ public class MumbleConnection implements Runnable {
 
 	public final void sendUdpTunnelMessage(final byte[] buffer, final int length)
 		throws IOException {
-		final short type = (short) MessageType.UDPTunnel.ordinal();
 
-		synchronized (out) {
-			out.writeShort(type);
-			out.writeInt(length);
-			out.write(buffer, 0, length);
+		sendUdpTunnelMessage(buffer, length, false);
+	}
+
+	public final void sendUdpTunnelMessage(
+		final byte[] buffer,
+		final int length,
+		final boolean forceUdp)
+		throws IOException {
+
+		if (forceUdp ||
+			lastUdpPing + UDP_PING_TRESHOLD > System.currentTimeMillis()) {
+
+			Log.i(Globals.LOG_TAG, "MumbleConnection: Sending UDP");
+
+			final byte[] encryptedBuffer = cryptState.Encrypt(buffer, length);
+			final DatagramPacket outPacket = new DatagramPacket(
+				encryptedBuffer,
+				encryptedBuffer.length);
+
+			outPacket.setAddress(Inet4Address.getByName(host));
+			outPacket.setPort(port);
+
+			udpOut.send(outPacket);
+
+		} else {
+			Log.i(
+				Globals.LOG_TAG,
+				"MumbleConnection: Tunneling UDP through TCP");
+
+			final short type = (short) MessageType.UDPTunnel.ordinal();
+
+			synchronized (out) {
+				out.writeShort(type);
+				out.writeInt(length);
+				out.write(buffer, 0, length);
+			}
 		}
 	}
 
@@ -271,83 +334,122 @@ public class MumbleConnection implements Runnable {
 		return users.get(session_);
 	}
 
-	private void handleProtocol(final Socket socket_) throws IOException,
+	private void handleProtocol(
+		final Socket tcpSocket,
+		final DatagramSocket udpSocket) throws IOException,
 			InterruptedException {
+
 		synchronized (stateLock) {
 			if (disconnecting) {
 				return;
 			}
+		}
 
-			out = new DataOutputStream(socket_.getOutputStream());
-			in = new DataInputStream(socket_.getInputStream());
+		out = new DataOutputStream(tcpSocket.getOutputStream());
+		in = new DataInputStream(tcpSocket.getInputStream());
+		udpOut = udpSocket;
 
-			final Version.Builder v = Version.newBuilder();
-			v.setVersion(protocolVersion);
-			v.setRelease("javalib 0.0.1-dev");
+		final Version.Builder v = Version.newBuilder();
+		v.setVersion(protocolVersion);
+		v.setRelease("javalib 0.0.1-dev");
 
-			final Authenticate.Builder a = Authenticate.newBuilder();
-			a.setUsername(username);
-			a.setPassword(password);
-			a.addCeltVersions(supportedCodec);
+		final Authenticate.Builder a = Authenticate.newBuilder();
+		a.setUsername(username);
+		a.setPassword(password);
+		a.addCeltVersions(supportedCodec);
 
-			sendMessage(MessageType.Version, v);
-			sendMessage(MessageType.Authenticate, a);
+		sendMessage(MessageType.Version, v);
+		sendMessage(MessageType.Authenticate, a);
 
+		synchronized (stateLock) {
 			if (disconnecting) {
 				return;
 			}
-
-			connectionHost.setConnectionState(ConnectionState.Connected);
 		}
 
 		// Process the stream in separate thread so we can interrupt it if necessary
 		// without interrupting the whole connection thread and thus allowing us to
 		// disconnect cleanly.
-		readingThread = new Thread(new Runnable() {
-			public void run() {
-				byte[] msg = null;
-				try {
-					while (socket_.isConnected() && !disconnecting) {
+		final MumbleSocketReader tcpReader = new MumbleSocketReader(stateLock) {
 
-						// Do the socket read outside of any lock as this is blocking operation
-						// which might take a while and must be interruptible.
-						// Interrupt itself is synchronized through stateLock.
-						final short type = in.readShort();
-						final int length = in.readInt();
-						if (msg == null || msg.length != length) {
-							msg = new byte[length];
-						}
-						in.readFully(msg);
+			private byte[] msg = null;
 
-						// Message processing can be done inside stateLock as it shouldn't involve
-						// slow network operations.
-						synchronized (stateLock) {
-							processMsg(MT_CONSTANTS[type], msg);
-						}
-					}
-				} catch (final IOException ex) {
-					Log.e(Globals.LOG_TAG, ex.toString());
-				} finally {
-					synchronized (stateLock) {
-						connectionHost.setConnectionState(ConnectionState.Disconnecting);
-						disconnecting = true;
+			@Override
+			public boolean isRunning() {
+				return tcpSocket.isConnected() && !disconnecting;
+			}
 
-						// The thread is dying so null it. This prevents the waiting loop from
-						// spotting that the thread might still be alive briefly after notifyAll.
-						readingThread = null;
-						stateLock.notifyAll();
-					}
+			@Override
+			protected void process() throws IOException {
+
+				final short type = in.readShort();
+				final int length = in.readInt();
+				if (msg == null || msg.length != length) {
+					msg = new byte[length];
+				}
+				in.readFully(msg);
+
+				// Serialize the message processing by performing it inside
+				// the stateLock.
+				synchronized (stateLock) {
+					processMsg(MT_CONSTANTS[type], msg);
 				}
 			}
-		});
+		};
 
-		readingThread.start();
+		final MumbleSocketReader udpReader = new MumbleSocketReader(stateLock) {
+
+			private final DatagramPacket packet =
+				new DatagramPacket(new byte[UDP_BUFFER_SIZE], UDP_BUFFER_SIZE);
+
+			@Override
+			public boolean isRunning() {
+				return udpSocket.isConnected() && !disconnecting;
+			}
+
+			@Override
+			protected void process() throws IOException {
+
+				udpSocket.receive(packet);
+
+				final byte[] buffer = cryptState.Decrypt(
+					packet.getData(),
+					packet.getLength());
+
+				// Decrypt might return null if the buffer was total garbage.
+				if (buffer == null) return;
+
+				// Serialize the message processing by performing it inside
+				// the stateLock.
+				synchronized (stateLock) {
+					Log.i(Globals.LOG_TAG, "MumbleConnection: Received UDP");
+					processUdpPacket(buffer, buffer.length);
+				}
+			}
+		};
+
+		tcpReaderThread = new Thread(tcpReader);
+		udpReaderThread = new Thread(udpReader);
+
+		tcpReaderThread.start();
+		udpReaderThread.start();
 
 		synchronized (stateLock) {
-			while (readingThread != null && readingThread.isAlive()) {
+
+			while (tcpReaderThread.isAlive() &&
+					tcpReader.isRunning() &&
+					udpReaderThread.isAlive() &&
+					udpReader.isRunning()) {
+
 				stateLock.wait();
 			}
-			readingThread = null;
+
+			// Interrupt both threads in case only one of them was closed.
+			tcpReaderThread.interrupt();
+			udpReaderThread.interrupt();
+
+			tcpReaderThread = null;
+			udpReaderThread = null;
 		}
 	}
 
@@ -375,7 +477,7 @@ public class MumbleConnection implements Runnable {
 
 		switch (t) {
 		case UDPTunnel:
-			processVoicePacket(buffer);
+			processUdpPacket(buffer, buffer.length);
 			break;
 		case Ping:
 			// ignore
@@ -388,7 +490,7 @@ public class MumbleConnection implements Runnable {
 					codecVersion.getAlpha() == supportedCodec) {
 				codec = CODEC_ALPHA;
 			} else if (codecVersion.hasBeta() &&
-					codecVersion.getBeta() == supportedCodec) {
+						codecVersion.getBeta() == supportedCodec) {
 				codec = CODEC_BETA;
 			}
 			canSpeak = canSpeak && (codec != CODEC_NOCODEC);
@@ -407,19 +509,18 @@ public class MumbleConnection implements Runnable {
 		case ServerSync:
 			final ServerSync ss = ServerSync.parseFrom(buffer);
 
-			// On the off chance that there's something in the protocol that
-			// results in the current user being changed we'll make sure we
-			// don't have two users marked as being the current user.
-			if (currentUser != null) {
-				currentUser.isCurrent = false;
-			}
+			// We do some things that depend on being executed only once here
+			// so for now assert that there won't be multiple ServerSyncs.
+			Assert.assertNull("A second ServerSync received.", currentUser);
 
 			currentUser = findUser(ss.getSession());
 			currentUser.isCurrent = true;
 			currentChannel = currentUser.getChannel();
 
-			pingThread = new Thread(new PingThread(this), "ping");
-			pingThread.start();
+			tcpPingThread = new Thread(new TCPPingThread(this), "TCP Ping");
+			tcpPingThread.start();
+			udpPingThread = new Thread(new UDPPingThread(this), "UDP Ping");
+			udpPingThread.start();
 			Log.i(Globals.LOG_TAG, ">>> " + t);
 
 			ao = new AudioOutput(audioHost);
@@ -431,6 +532,8 @@ public class MumbleConnection implements Runnable {
 //			usb.setPluginContext(ByteString
 //					.copyFromUtf8("Manual placement\000test"));
 			sendMessage(MessageType.UserState, usb);
+
+			connectionHost.setConnectionState(ConnectionState.Connected);
 
 			connectionHost.currentChannelChanged();
 			connectionHost.currentUserUpdated();
@@ -499,11 +602,11 @@ public class MumbleConnection implements Runnable {
 					// in canSpeak = true
 					if (us.hasMute()) {
 						canSpeak = (codec != CODEC_NOCODEC) &&
-								!us.getMute();
+									!us.getMute();
 					}
 					if (us.hasSuppress()) {
 						canSpeak = (codec != CODEC_NOCODEC) &&
-								!us.getSuppress();
+									!us.getSuppress();
 					}
 				}
 
@@ -545,6 +648,8 @@ public class MumbleConnection implements Runnable {
 		case CryptSetup:
 			final CryptSetup cryptsetup = CryptSetup.parseFrom(buffer);
 
+			Log.i(Globals.LOG_TAG, "MumbleConnection: CryptSetup");
+
 			if (cryptsetup.hasKey() && cryptsetup.hasClientNonce() &&
 				cryptsetup.hasServerNonce()) {
 				cryptState.SetKeys(
@@ -555,6 +660,25 @@ public class MumbleConnection implements Runnable {
 			break;
 		default:
 			Log.i(Globals.LOG_TAG, "unhandled message type " + t);
+		}
+	}
+
+	private void processUdpPacket(final byte[] buffer, int length) {
+		final int type = buffer[0] >> 5 & 0x7;
+		if (type == 1) {
+
+			final long timestamp =
+				(long) buffer[1] << 24 +
+				(long) buffer[2] << 16 +
+				(long) buffer[3] << 8 +
+				(long) buffer[4];
+
+			if (lastUdpPing < timestamp) {
+				lastUdpPing = timestamp;
+			}
+
+		} else {
+			processVoicePacket(buffer);
 		}
 	}
 

@@ -104,6 +104,7 @@ public class MumbleConnection implements Runnable {
 	private DataOutputStream out;
 	private DatagramSocket udpOut;
 	private long lastUdpPing;
+	boolean usingUdp = false;
 
 	private Thread pingThread;
 	private boolean disconnecting = false;
@@ -234,6 +235,10 @@ public class MumbleConnection implements Runnable {
 				audioOutputThread.join();
 			}
 
+			if (pingThread != null) {
+				pingThread.interrupt();
+			}
+
 			// FIXME: These throw exceptions for some reason.
 			// Even with the checks in place
 			if (tcpSocket.isConnected())
@@ -288,7 +293,7 @@ public class MumbleConnection implements Runnable {
 		}
 
 		if (t != MessageType.Ping) {
-			Log.i(Globals.LOG_TAG, "<<< " + t);
+			Log.d(Globals.LOG_TAG, "<<< " + t);
 		}
 	}
 
@@ -303,7 +308,11 @@ public class MumbleConnection implements Runnable {
 
 		if (forceUdp ||
 			lastUdpPing + UDP_PING_TRESHOLD > System.currentTimeMillis()) {
-//			Log.i(Globals.LOG_TAG, "MumbleConnection: Sending UDP");
+
+			if (!usingUdp && !forceUdp) {
+				Log.i(Globals.LOG_TAG, "MumbleConnection: UDP enabled");
+				usingUdp = true;
+			}
 
 			final byte[] encryptedBuffer = cryptState.Encrypt(buffer, length);
 			final DatagramPacket outPacket = new DatagramPacket(
@@ -315,9 +324,10 @@ public class MumbleConnection implements Runnable {
 
 			udpOut.send(outPacket);
 		} else {
-//			Log.i(
-//				Globals.LOG_TAG,
-//				"MumbleConnection: Tunneling UDP through TCP");
+			if (usingUdp) {
+				Log.i(Globals.LOG_TAG, "MumbleConnection: UDP disabled");
+				usingUdp = false;
+			}
 
 			final short type = (short) MessageType.UDPTunnel.ordinal();
 
@@ -527,7 +537,7 @@ public class MumbleConnection implements Runnable {
 
 			pingThread = new Thread(new PingThread(this), "Ping");
 			pingThread.start();
-			Log.i(Globals.LOG_TAG, ">>> " + t);
+			Log.d(Globals.LOG_TAG, ">>> " + t);
 
 			ao = new AudioOutput(audioHost);
 			audioOutputThread = new Thread(ao, "audio output");
@@ -654,7 +664,7 @@ public class MumbleConnection implements Runnable {
 		case CryptSetup:
 			final CryptSetup cryptsetup = CryptSetup.parseFrom(buffer);
 
-			Log.i(Globals.LOG_TAG, "MumbleConnection: CryptSetup");
+			Log.d(Globals.LOG_TAG, "MumbleConnection: CryptSetup");
 
 			if (cryptsetup.hasKey() && cryptsetup.hasClientNonce() &&
 				cryptsetup.hasServerNonce()) {
@@ -665,7 +675,7 @@ public class MumbleConnection implements Runnable {
 			}
 			break;
 		default:
-			Log.i(Globals.LOG_TAG, "unhandled message type " + t);
+			Log.w(Globals.LOG_TAG, "unhandled message type " + t);
 		}
 	}
 

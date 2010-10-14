@@ -15,6 +15,7 @@ import android.util.Log;
 public abstract class MumbleSocketReader implements Runnable {
 
 	private final Object monitor;
+	private boolean running;
 
 	/**
 	 * Constructs a new Reader instance
@@ -25,6 +26,7 @@ public abstract class MumbleSocketReader implements Runnable {
 	 */
 	public MumbleSocketReader(final Object monitor) {
 		this.monitor = monitor;
+		this.running = true;
 	}
 
 	@Override
@@ -36,6 +38,7 @@ public abstract class MumbleSocketReader implements Runnable {
 		} catch (final IOException ex) {
 			Log.e(Globals.LOG_TAG, ex.toString());
 		} finally {
+			running = false;
 			synchronized (monitor) {
 				monitor.notifyAll();
 			}
@@ -47,7 +50,10 @@ public abstract class MumbleSocketReader implements Runnable {
 	 *
 	 * @return True while the reader should keep processing the socket.
 	 */
-	public abstract boolean isRunning();
+	public boolean isRunning()
+	{
+		return running;
+	}
 
 	/**
 	 * A single processing step that reads and processes a message from the socket.

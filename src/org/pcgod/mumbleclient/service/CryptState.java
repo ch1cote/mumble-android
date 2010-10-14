@@ -11,6 +11,8 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
 
+import com.google.protobuf.ByteString;
+
 public class CryptState {
 	private static final int AES_BLOCK_SIZE = 16;
 
@@ -51,7 +53,7 @@ public class CryptState {
 	private int late;
 	private int lost;
 
-	public byte[] Decrypt(final byte[] source, int length) {
+	public synchronized byte[] decrypt(final byte[] source, int length) {
 		if (length < 4) {
 			return null;
 		}
@@ -135,7 +137,7 @@ public class CryptState {
 		final byte[] newsrc = new byte[plain_length];
 		System.arraycopy(source, 4, newsrc, 0, plain_length);
 		try {
-			OcbDecrypt(newsrc, dst, decryptIv, tag);
+			ocbDecrypt(newsrc, dst, decryptIv, tag);
 		} catch (final IllegalBlockSizeException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -164,7 +166,7 @@ public class CryptState {
 		return dst;
 	}
 
-	public byte[] Encrypt(final byte[] source, int length) {
+	public synchronized byte[] encrypt(final byte[] source, int length) {
 		final byte[] tag = new byte[AES_BLOCK_SIZE];
 
 		// First, increase our IV.
@@ -176,7 +178,7 @@ public class CryptState {
 
 		final byte[] dst = new byte[length + 4];
 		try {
-			OcbEncrypt(source, length, dst, encryptIv, tag);
+			ocbEncrypt(source, length, dst, encryptIv, tag);
 		} catch (final IllegalBlockSizeException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -197,11 +199,23 @@ public class CryptState {
 		return dst;
 	}
 
+	public synchronized ByteString getClientNonce() {
+		return ByteString.copyFrom(encryptIv);
+	}
+
+	public synchronized ByteString getServerNonce() {
+		return ByteString.copyFrom(decryptIv);
+	}
+
 	public boolean isInitialized() {
 		return initialized;
 	}
 
-	public void SetKeys(final byte[] rkey, final byte[] eiv, final byte[] div) {
+	public synchronized void setClientNonce(byte[] newNonce) {
+		encryptIv = newNonce;
+	}
+
+	public synchronized void setKeys(final byte[] rkey, final byte[] eiv, final byte[] div) {
 		initialized = false;
 		try {
 			encryptCipher = Cipher.getInstance("AES/ECB/NoPadding");
@@ -231,7 +245,11 @@ public class CryptState {
 		initialized = true;
 	}
 
-	private void OcbDecrypt(
+	public synchronized void setServerNonce(byte[] newNonce) {
+		decryptIv = newNonce;
+	}
+
+	private synchronized void ocbDecrypt(
 		final byte[] encrypted,
 		final byte[] plain,
 		final byte[] nonce,
@@ -283,7 +301,7 @@ public class CryptState {
 		encryptCipher.doFinal(tmp, 0, AES_BLOCK_SIZE, tag);
 	}
 
-	private void OcbEncrypt(
+	private synchronized void ocbEncrypt(
 		final byte[] plain,
 		final int plain_length,
 		final byte[] encrypted,

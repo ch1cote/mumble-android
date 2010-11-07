@@ -326,6 +326,7 @@ public class ServerList extends ConnectedListActivity {
 		connectionIntent.putExtra(MumbleService.EXTRA_PORT, port);
 		connectionIntent.putExtra(MumbleService.EXTRA_USERNAME, username);
 		connectionIntent.putExtra(MumbleService.EXTRA_PASSWORD, password);
+		connectionIntent.putExtra(MumbleService.EXTRA_ID, id);
 		startService(connectionIntent);
 	}
 

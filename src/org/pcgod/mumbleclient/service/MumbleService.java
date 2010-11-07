@@ -380,6 +380,7 @@ public class MumbleService extends Service {
 	public static final String EXTRA_USERNAME = "mumbleclient.extra.USERNAME";
 	public static final String EXTRA_PASSWORD = "mumbleclient.extra.PASSWORD";
 	public static final String EXTRA_USER = "mumbleclient.extra.USER";
+	public static final String EXTRA_ID = "mumbleclient.extra.ID";
 	private MumbleConnection mClient;
 
 	private MumbleProtocol mProtocol;
@@ -417,6 +418,8 @@ public class MumbleService extends Service {
 	private ServiceProtocolHost mProtocolHost;
 	private ServiceConnectionHost mConnectionHost;
 	private ServiceAudioOutputHost mAudioHost;
+
+	private int serverId;
 
 	public boolean canSpeak() {
 		return mProtocol != null && mProtocol.canSpeak;
@@ -484,6 +487,10 @@ public class MumbleService extends Service {
 	public IBinder onBind(final Intent intent) {
 		Log.i(Globals.LOG_TAG, "MumbleService: Bound");
 		return mBinder;
+	}
+
+	public int getServerId() {
+		return serverId;
 	}
 
 	@Override
@@ -639,6 +646,7 @@ public class MumbleService extends Service {
 		final int port = intent.getIntExtra(EXTRA_PORT, -1);
 		final String username = intent.getStringExtra(EXTRA_USERNAME);
 		final String password = intent.getStringExtra(EXTRA_PASSWORD);
+		final int id = intent.getIntExtra(EXTRA_ID, -1);
 
 		if (mClient != null &&
 			mClient.isSameServer(host, port, username, password)) {
@@ -650,6 +658,8 @@ public class MumbleService extends Service {
 		mProtocolHost = new ServiceProtocolHost();
 		mConnectionHost = new ServiceConnectionHost();
 		mAudioHost = new ServiceAudioOutputHost();
+
+		serverId = id;
 
 		mClient = new MumbleConnection(
 			mConnectionHost,

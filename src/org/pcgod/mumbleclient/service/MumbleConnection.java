@@ -3,8 +3,6 @@ package org.pcgod.mumbleclient.service;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.net.ConnectException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -220,6 +218,7 @@ public class MumbleConnection implements Runnable {
 			SSLSocket tcpSocket;
 			DatagramSocket udpSocket;
 
+			Log.i(Globals.LOG_TAG, String.format("Connecting to host \"%s\", port %s", host, port));
 			final SSLContext ctx_ = SSLContext.getInstance("TLS");
 			ctx_.init(null,
 						new TrustManager[] { new LocalSSLTrustManager() },
@@ -230,16 +229,19 @@ public class MumbleConnection implements Runnable {
 			tcpSocket.setEnabledProtocols(new String[] { "TLSv1" });
 			tcpSocket.startHandshake();
 
+			Log.i(Globals.LOG_TAG, "TCP/SSL socket opened");
+
 			udpSocket = new DatagramSocket();
 			udpSocket.connect(Inet4Address.getByName(host), port);
 
-			Log.i(Globals.LOG_TAG, "Syncing");
+			Log.i(Globals.LOG_TAG, "UDP Socket opened");
 
 			synchronized (stateLock) {
 				connectionHost.setConnectionState(ConnectionState.Synchronizing);
 			}
 
 			handleProtocol(tcpSocket, udpSocket);
+
 
 			// Clean connection state that might have been initialized.
 			// Do this before closing the socket as the threads could use it.
@@ -259,17 +261,19 @@ public class MumbleConnection implements Runnable {
 			if (udpSocket.isConnected())
 				udpSocket.close();
 		} catch (final NoSuchAlgorithmException e) {
-			e.printStackTrace();
+			Log.e(Globals.LOG_TAG, String.format("Could not connect to Mumble server \"%s:%s\"", host, port), e);
 		} catch (final KeyManagementException e) {
-			e.printStackTrace();
+			Log.e(Globals.LOG_TAG, String.format("Could not connect to Mumble server \"%s:%s\"", host, port), e);
 		} catch (final UnknownHostException e) {
 			errorString = String.format("Host \"%s\" unknown", host);
+			Log.e(Globals.LOG_TAG, errorString, e);
 		} catch (final ConnectException e) {
 			errorString = "The host refused connection";
+			Log.e(Globals.LOG_TAG, errorString, e);
 		} catch (final IOException e) {
-			Log.e(Globals.LOG_TAG, "Error connecting", e);
+			Log.e(Globals.LOG_TAG, String.format("Could not connect to Mumble server \"%s:%s\"", host, port), e);
 		} catch (final InterruptedException e) {
-			e.printStackTrace();
+			Log.e(Globals.LOG_TAG, String.format("Could not connect to Mumble server \"%s:%s\"", host, port), e);
 		}
 
 		synchronized (stateLock) {
@@ -284,7 +288,7 @@ public class MumbleConnection implements Runnable {
 		try {
 			sendMessage(MessageType.TextMessage, tmb);
 		} catch (final IOException e) {
-			e.printStackTrace();
+			Log.e(Globals.LOG_TAG, "Could not send text message", e);
 		}
 
 		final Message msg = new Message();
@@ -538,6 +542,7 @@ public class MumbleConnection implements Runnable {
 			errorString = String.format(
 				"Connection rejected: %s",
 				reject.getReason());
+			Log.e(Globals.LOG_TAG, String.format("Received Reject message: %s", reject.getReason()));
 			break;
 		case ServerSync:
 			final ServerSync ss = ServerSync.parseFrom(buffer);
@@ -747,7 +752,7 @@ public class MumbleConnection implements Runnable {
 
 		final User u = findUser((int) uiSession);
 		if (u == null) {
-			Log.e(Globals.LOG_TAG, "User session " + uiSession + "not found!");
+			Log.e(Globals.LOG_TAG, "User session " + uiSession + " not found!");
 		}
 
 		// Rewind the packet. Otherwise consumers are confusing to implement.

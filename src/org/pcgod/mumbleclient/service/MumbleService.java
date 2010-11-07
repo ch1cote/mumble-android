@@ -321,10 +321,10 @@ public class MumbleService extends Service {
 	final List<Channel> channels = new ArrayList<Channel>();
 	final List<User> users = new ArrayList<User>();
 
-	private static final Class[] mStartForegroundSignature = new Class[] {
+	private static final Class<?>[] mStartForegroundSignature = new Class[] {
 			int.class, Notification.class };
 
-	private static final Class[] mStopForegroundSignature = new Class[] { boolean.class };
+	private static final Class<?>[] mStopForegroundSignature = new Class[] { boolean.class };
 
 	private Method mStartForeground;
 	private Method mStopForeground;
@@ -524,7 +524,7 @@ public class MumbleService extends Service {
 
 		mClient.sendChannelTextMessage(message, channel);
 	}
-	
+
 	public void sendChannelTextMessage(final String message) {
 		this.sendChannelTextMessage(message, this.getCurrentChannel());
 	}

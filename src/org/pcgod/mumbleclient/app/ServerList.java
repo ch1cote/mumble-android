@@ -1,16 +1,22 @@
 package org.pcgod.mumbleclient.app;
 
+import junit.framework.Assert;
+
+import org.pcgod.mumbleclient.Globals;
 import org.pcgod.mumbleclient.R;
 import org.pcgod.mumbleclient.service.MumbleService;
 
 import android.app.AlertDialog;
 import android.app.Dialog;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.database.Cursor;
 import android.media.AudioManager;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.ContextMenu;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -35,6 +41,20 @@ import android.widget.AdapterView.AdapterContextMenuInfo;
  *
  */
 public class ServerList extends ConnectedListActivity {
+
+	private class ConnectionBroadcastReceiver extends BroadcastReceiver {
+		@Override
+		public void onReceive(Context context, Intent intent) {
+			if (intent.getAction().equals(
+				MumbleService.INTENT_CONNECTION_STATE_CHANGED)) {
+				checkConnectionState();
+				return;
+			}
+
+			Assert.fail("Unknown Broadcast action");
+		}
+	};
+
 	private class ServerAdapter extends BaseAdapter {
 		private final Context context;
 		private final Cursor cursor;
@@ -87,7 +107,7 @@ public class ServerList extends ConnectedListActivity {
 			} else {
 				nameText.setText(serverName);
 				userText.setText(serverUsername + "@" + serverHost + ":" +
-								 serverPort);
+									serverPort);
 			}
 
 			return row;
@@ -107,6 +127,11 @@ public class ServerList extends ConnectedListActivity {
 	private static final int MENU_EXIT = Menu.FIRST + 3;
 	private static final int MENU_CONNECT_SERVER = Menu.FIRST + 4;
 	private static final int MENU_PREFERENCES = Menu.FIRST + 5;
+
+	private static final String STATE_WAIT_CONNECTION = "org.pcgod.mumbleclient.ServerList.WAIT_CONNECTION";
+
+	private BroadcastReceiver bcReceiver;
+	private Bundle savedInstanceState;
 
 	@Override
 	public final boolean onContextItemSelected(final MenuItem item) {
@@ -192,6 +217,34 @@ public class ServerList extends ConnectedListActivity {
 		startActivityForResult(i, ACTIVITY_ADD_SERVER);
 	}
 
+	/**
+	 * Monitors the connection state after clicking a server entry.
+	 */
+	private final boolean checkConnectionState() {
+		switch (mService.getConnectionState()) {
+		case Connecting:
+		case Synchronizing:
+		case Connected:
+			unregisterConnectionReceiver();
+			final Intent i = new Intent(this, ChannelList.class);
+			startActivityForResult(i, ACTIVITY_CHANNEL_LIST);
+			return true;
+		case Disconnected:
+		case Disconnecting:
+			// TODO: Error message checks.
+			// This can be reached if the user leaves ServerList after clicking
+			// server but before the connection intent reaches the service.
+			// In this case the service connects and can be disconnected before
+			// the connection state is checked again.
+			Log.i(Globals.LOG_TAG, "ServerList: Disconnected");
+			break;
+		default:
+			Assert.fail("Unknown connection state");
+		}
+
+		return false;
+	}
+
 	private Dialog createDeleteServerDialog() {
 		final AlertDialog.Builder builder = new AlertDialog.Builder(this);
 		builder.setMessage("Are you sure you want to delete this server?").setCancelable(
@@ -234,6 +287,26 @@ public class ServerList extends ConnectedListActivity {
 		return name;
 	}
 
+	private boolean registerConnectionReceiver() {
+		if (bcReceiver != null)
+			return false;
+
+		final IntentFilter ifilter = new IntentFilter();
+		ifilter.addAction(MumbleService.INTENT_CONNECTION_STATE_CHANGED);
+		bcReceiver = new ConnectionBroadcastReceiver();
+		registerReceiver(bcReceiver, ifilter);
+		return true;
+	}
+
+	private boolean unregisterConnectionReceiver() {
+		if (bcReceiver == null)
+			return false;
+
+		unregisterReceiver(bcReceiver);
+		bcReceiver = null;
+		return true;
+	}
+
 	/**
 	 * Starts connecting to a server.
 	 *
@@ -247,6 +320,8 @@ public class ServerList extends ConnectedListActivity {
 		final String password = c.getString(c.getColumnIndexOrThrow(DbAdapter.SERVER_COL_PASSWORD));
 		c.close();
 
+		registerConnectionReceiver();
+
 		final Intent connectionIntent = new Intent(this, MumbleService.class);
 		connectionIntent.setAction(MumbleService.ACTION_CONNECT);
 		connectionIntent.putExtra(MumbleService.EXTRA_HOST, host);
@@ -254,10 +329,6 @@ public class ServerList extends ConnectedListActivity {
 		connectionIntent.putExtra(MumbleService.EXTRA_USERNAME, username);
 		connectionIntent.putExtra(MumbleService.EXTRA_PASSWORD, password);
 		startService(connectionIntent);
-		//mService.setServer(host, port, username, password);
-
-		final Intent i = new Intent(this, ChannelList.class);
-		startActivityForResult(i, ACTIVITY_CHANNEL_LIST);
 	}
 
 	@Override
@@ -274,7 +345,13 @@ public class ServerList extends ConnectedListActivity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
 		registerForContextMenu(getListView());
+
+		// FIXME: Volume settings
 		setVolumeControlStream(AudioManager.STREAM_MUSIC);
+
+		if (savedInstanceState != null) {
+			this.savedInstanceState = savedInstanceState;
+		}
 
 		dbAdapter = new DbAdapter(this);
 		dbAdapter.open();
@@ -311,6 +388,32 @@ public class ServerList extends ConnectedListActivity {
 		super.onListItemClick(l, v, position, id);
 
 		connectServer(id);
+	}
+
+	@Override
+	protected void onPause() {
+		unregisterConnectionReceiver();
+		super.onPause();
+	}
+
+	@Override
+	protected void onSaveInstanceState(Bundle outState) {
+		super.onSaveInstanceState(outState);
+		if (bcReceiver != null) {
+			outState.putBoolean(STATE_WAIT_CONNECTION, true);
+		}
+	}
+
+	@Override
+	protected void onServiceBound() {
+
+		if (savedInstanceState != null &&
+			savedInstanceState.getBoolean(STATE_WAIT_CONNECTION, false)) {
+
+			if (!checkConnectionState()) {
+				registerConnectionReceiver();
+			}
+		}
 	}
 
 	void fillList() {

@@ -247,26 +247,30 @@ public class ServerList extends ConnectedListActivity {
 
 	private Dialog createDeleteServerDialog() {
 		final AlertDialog.Builder builder = new AlertDialog.Builder(this);
-		builder.setMessage("Are you sure you want to delete this server?").setCancelable(
-			false).setPositiveButton(
-			"Yes",
-			new DialogInterface.OnClickListener() {
-				public void onClick(final DialogInterface dialog, final int id) {
-					if (serverToDeleteId > 0) {
-						dbAdapter.deleteServer(serverToDeleteId);
-						serverToDeleteId = -1;
-						fillList();
-						Toast.makeText(
-							ServerList.this,
-							R.string.server_deleted,
-							Toast.LENGTH_SHORT).show();
+		builder.setMessage("Are you sure you want to delete this server?")
+			.setCancelable(false)
+			.setPositiveButton(
+				"Yes",
+				new DialogInterface.OnClickListener() {
+					public void onClick(
+						final DialogInterface dialog,
+						final int id) {
+						if (serverToDeleteId > 0) {
+							dbAdapter.deleteServer(serverToDeleteId);
+							serverToDeleteId = -1;
+							fillList();
+							Toast.makeText(
+								ServerList.this,
+								R.string.server_deleted,
+								Toast.LENGTH_SHORT).show();
+						}
 					}
+				})
+			.setNegativeButton("No", new DialogInterface.OnClickListener() {
+				public void onClick(final DialogInterface dialog, final int id) {
+					dialog.cancel();
 				}
-			}).setNegativeButton("No", new DialogInterface.OnClickListener() {
-			public void onClick(final DialogInterface dialog, final int id) {
-				dialog.cancel();
-			}
-		});
+			});
 
 		return builder.create();
 	}

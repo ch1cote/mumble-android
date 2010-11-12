@@ -30,4 +30,6 @@ public interface MumbleConnectionHost {
 	public void userRemoved(int userId);
 
 	public void userUpdated(User user);
+
+	public void setError(final String error);
 }

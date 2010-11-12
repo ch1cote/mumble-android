@@ -139,21 +139,16 @@ public class MumbleConnection implements Runnable {
 	 * another activity checks for connection state and finds out the service is
 	 * in Disconnected state.
 	 *
-	 * @param connectionHost_
+	 * @param connectionHost
 	 *            Host interface for this Connection
-	 * @param audioHost_
-	 *            Host interface for underlying AudioOutputs.
-	 * @param host_
+	 * @param host
 	 *            Mumble server host address
-	 * @param port_
+	 * @param port
 	 *            Mumble server port
-	 * @param username_
+	 * @param username
 	 *            Username
-	 * @param password_
+	 * @param password
 	 *            Server password
-	 * @param audioSettings_
-	 *            Settings for the AudioOutput wrapped in a class so
-	 *            MumbleConnection doesn't need to know what it has to pass on.
 	 */
 	public MumbleConnection(
 		final MumbleConnectionHost connectionHost,

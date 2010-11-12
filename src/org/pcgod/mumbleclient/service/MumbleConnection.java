@@ -7,6 +7,7 @@ import java.net.ConnectException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
+import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.security.KeyManagementException;
@@ -48,6 +49,13 @@ import com.google.protobuf.MessageLite;
  */
 public class MumbleConnection implements Runnable {
 
+	/**
+	 * Socket reader for the TCP socket. Interprets the Mumble TCP envelope and
+	 * extracts the data inside.
+	 *
+	 * @author Rantanen
+	 *
+	 */
 	class TcpSocketReader extends MumbleSocketReader {
 		public TcpSocketReader(Object monitor) {
 			super(monitor);
@@ -73,6 +81,13 @@ public class MumbleConnection implements Runnable {
 		}
 	};
 
+	/**
+	 * Socket reader for the UDP socket. Decrypts the data from the raw UDP
+	 * packages.
+	 *
+	 * @author Rantanen
+	 *
+	 */
 	class UdpSocketReader extends MumbleSocketReader {
 		public UdpSocketReader(Object monitor) {
 			super(monitor);
@@ -109,14 +124,24 @@ public class MumbleConnection implements Runnable {
 	private final MumbleConnectionHost connectionHost;
 	private Protocol protocol;
 
-	private SSLSocket tcpSocket;
+	private Socket tcpSocket;
 	private DataInputStream in;
 	private DataOutputStream out;
 	private DatagramSocket udpSocket;
 	private long useUdpUntil;
 	boolean usingUdp = false;
 
+	/**
+	 * Signals disconnecting state. True if something has interrupted the normal
+	 * operation of the MumbleConnection thread and it should stop.
+	 */
 	private volatile boolean disconnecting = false;
+
+	/**
+	 * Signals whether connection terminating errors should be suspected. Mainly
+	 * used to suppress some IO/Interruption errors that occur as a result of
+	 * stopping the MumbleConnection after calling disconnect()
+	 */
 	private volatile boolean suppressErrors = false;
 
 	private final String host;
@@ -220,8 +245,8 @@ public class MumbleConnection implements Runnable {
 					host,
 					port));
 
-				connectTcp();
-				connectUdp();
+				tcpSocket = connectTcp();
+				udpSocket = connectUdp();
 				connected = true;
 			} catch (final UnknownHostException e) {
 				final String errorString = String.format(
@@ -446,7 +471,7 @@ public class MumbleConnection implements Runnable {
 		return false;
 	}
 
-	private void connectTcp() throws NoSuchAlgorithmException,
+	protected Socket connectTcp() throws NoSuchAlgorithmException,
 		KeyManagementException, IOException, UnknownHostException {
 		final SSLContext ctx_ = SSLContext.getInstance("TLS");
 		ctx_.init(
@@ -454,19 +479,23 @@ public class MumbleConnection implements Runnable {
 			new TrustManager[] { new LocalSSLTrustManager() },
 			null);
 		final SSLSocketFactory factory = ctx_.getSocketFactory();
-		tcpSocket = (SSLSocket) factory.createSocket(host, port);
-		tcpSocket.setUseClientMode(true);
-		tcpSocket.setEnabledProtocols(new String[] { "TLSv1" });
-		tcpSocket.startHandshake();
+		final SSLSocket sslSocket = (SSLSocket) factory.createSocket(host, port);
+		sslSocket.setUseClientMode(true);
+		sslSocket.setEnabledProtocols(new String[] { "TLSv1" });
+		sslSocket.startHandshake();
 
 		Log.i(Globals.LOG_TAG, "TCP/SSL socket opened");
+
+		return sslSocket;
 	}
 
-	private void connectUdp() throws SocketException, UnknownHostException {
+	protected DatagramSocket connectUdp() throws SocketException, UnknownHostException {
 		udpSocket = new DatagramSocket();
 		udpSocket.connect(Inet4Address.getByName(host), port);
 
 		Log.i(Globals.LOG_TAG, "UDP Socket opened");
+
+		return udpSocket;
 	}
 
 	private void handleProtocol() throws IOException,

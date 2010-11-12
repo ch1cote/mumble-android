@@ -9,7 +9,7 @@ import java.util.Map;
 
 import org.pcgod.mumbleclient.Globals;
 import org.pcgod.mumbleclient.Settings;
-import org.pcgod.mumbleclient.service.MumbleConnection;
+import org.pcgod.mumbleclient.service.MumbleProtocol;
 import org.pcgod.mumbleclient.service.PacketDataStream;
 import org.pcgod.mumbleclient.service.audio.AudioUser.PacketReadyHandler;
 import org.pcgod.mumbleclient.service.model.User;
@@ -22,7 +22,7 @@ import android.util.Log;
 /**
  * Audio output thread.
  * Handles the playback of UDP packets added with addFrameToBuffer.
- *
+ * 
  * @author pcgod, Rantanen
  */
 public class AudioOutput implements Runnable {
@@ -56,7 +56,7 @@ public class AudioOutput implements Runnable {
 	 * Buffer used to hold temporary float values while mixing multiple
 	 * inputs. Only for use in the audio thread.
 	 */
-	final float[] tempMix = new float[MumbleConnection.FRAME_SIZE];
+	final float[] tempMix = new float[MumbleProtocol.FRAME_SIZE];
 
 	private final AudioOutputHost host;
 
@@ -65,7 +65,7 @@ public class AudioOutput implements Runnable {
 		this.host = host;
 
 		minBufferSize = AudioTrack.getMinBufferSize(
-			MumbleConnection.SAMPLE_RATE,
+			MumbleProtocol.SAMPLE_RATE,
 			AudioFormat.CHANNEL_CONFIGURATION_MONO,
 			AudioFormat.ENCODING_PCM_16BIT);
 
@@ -74,13 +74,13 @@ public class AudioOutput implements Runnable {
 
 		// Resolve the minimum frame count that fills the minBuffer requirement.
 		final int frameCount = (int) Math.ceil((double) desiredBufferSize /
-											   MumbleConnection.FRAME_SIZE);
+												MumbleProtocol.FRAME_SIZE);
 
-		bufferSize = frameCount * MumbleConnection.FRAME_SIZE;
+		bufferSize = frameCount * MumbleProtocol.FRAME_SIZE;
 
 		at = new AudioTrack(
 			settings.getAudioStream(),
-			MumbleConnection.SAMPLE_RATE,
+			MumbleProtocol.SAMPLE_RATE,
 			AudioFormat.CHANNEL_CONFIGURATION_MONO,
 			AudioFormat.ENCODING_PCM_16BIT,
 			bufferSize,
@@ -127,7 +127,7 @@ public class AudioOutput implements Runnable {
 	}
 
 	private void audioLoop() throws InterruptedException {
-		final short[] out = new short[MumbleConnection.FRAME_SIZE];
+		final short[] out = new short[MumbleProtocol.FRAME_SIZE];
 		final List<AudioUser> mix = new LinkedList<AudioUser>();
 
 		int buffered = 0;
@@ -144,7 +144,7 @@ public class AudioOutput implements Runnable {
 				// Mix all the frames into one array.
 				mix(out, mix);
 
-				at.write(out, 0, MumbleConnection.FRAME_SIZE);
+				at.write(out, 0, MumbleProtocol.FRAME_SIZE);
 
 				// Make sure we are playing when there are enough samples
 				// buffered.
@@ -209,7 +209,7 @@ public class AudioOutput implements Runnable {
 		}
 
 		// Clip buffer for real output.
-		for (int i = 0; i < MumbleConnection.FRAME_SIZE; i++) {
+		for (int i = 0; i < MumbleProtocol.FRAME_SIZE; i++) {
 			clipOut[i] = (short) (Short.MAX_VALUE * (tempMix[i] < -1.0f ? -1.0f
 				: (tempMix[i] > 1.0f ? 1.0f : tempMix[i])));
 		}
@@ -223,10 +223,10 @@ public class AudioOutput implements Runnable {
 
 			// Wait with the audio on
 			while (shouldRun && userPackets.isEmpty() &&
-				   (silentTime + standbyTreshold) > System.currentTimeMillis()) {
+					(silentTime + standbyTreshold) > System.currentTimeMillis()) {
 
 				userPackets.wait((silentTime + standbyTreshold) -
-								 System.currentTimeMillis() + 1);
+									System.currentTimeMillis() + 1);
 			}
 
 			// If conditions are still not filled, pause audio and wait more.

@@ -43,6 +43,7 @@ import org.pcgod.mumbleclient.service.model.User;
 import android.content.Context;
 import android.util.Log;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.MessageLite;
 
 /**
@@ -189,6 +190,10 @@ public class MumbleConnection implements Runnable {
 			connectionHost.setConnectionState(ConnectionState.Disconnecting);
 			stateLock.notifyAll();
 		}
+	}
+
+	public ByteString getNonce() {
+		return cryptState.getClientNonce();
 	}
 
 	public final boolean isConnectionAlive() {
@@ -381,6 +386,16 @@ public class MumbleConnection implements Runnable {
 					out.write(buffer, 0, length);
 				}
 			}
+		}
+	}
+
+	public void syncCryptKeys(byte[] key, byte[] clientNonce, byte[] serverNonce) {
+		Assert.assertNotNull(serverNonce);
+
+		if (key != null && clientNonce != null) {
+			cryptState.setKeys(key, clientNonce, serverNonce);
+		} else {
+			cryptState.setServerNonce(serverNonce);
 		}
 	}
 
@@ -786,21 +801,23 @@ public class MumbleConnection implements Runnable {
 				cryptsetup.hasServerNonce()) {
 
 				// Full key setup
-				cryptState.setKeys(
-					cryptsetup.getKey().toByteArray(),
+				syncCryptKeys(cryptsetup.getKey().toByteArray(),
 					cryptsetup.getClientNonce().toByteArray(),
 					cryptsetup.getServerNonce().toByteArray());
 			} else if (cryptsetup.hasServerNonce()) {
 				// Server syncing its nonce to us.
 				Log.d(Globals.LOG_TAG, "MumbleConnection: Server sending nonce");
-				cryptState.setServerNonce(cryptsetup.getServerNonce().toByteArray());
+				syncCryptKeys(
+					null,
+					null,
+					cryptsetup.getServerNonce().toByteArray());
 			} else {
 				// Server wants our nonce.
 				Log.d(
 					Globals.LOG_TAG,
 					"MumbleConnection: Server requesting nonce");
 				final CryptSetup.Builder nonceBuilder = CryptSetup.newBuilder();
-				nonceBuilder.setClientNonce(cryptState.getClientNonce());
+				nonceBuilder.setClientNonce(getNonce());
 				sendMessage(MessageType.CryptSetup, nonceBuilder);
 			}
 			break;

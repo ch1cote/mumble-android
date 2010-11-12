@@ -14,6 +14,27 @@ import android.util.Log;
  */
 public abstract class MumbleSocketReader {
 
+	protected Runnable runnable = new Runnable() {
+		@Override
+		public void run() {
+			try {
+				while (isRunning()) {
+					process();
+				}
+			} catch (final IOException ex) {
+				// If we aren't running, exception is expected.
+				if (isRunning()) {
+					Log.e(Globals.LOG_TAG, "Error reading socket", ex);
+				}
+			} finally {
+				running = false;
+				synchronized (monitor) {
+					monitor.notifyAll();
+				}
+			}
+		}
+	};
+
 	private final Object monitor;
 	private boolean running;
 	private final Thread thread;
@@ -39,27 +60,6 @@ public abstract class MumbleSocketReader {
 	public boolean isRunning() {
 		return running && thread.isAlive();
 	}
-
-	protected Runnable runnable = new Runnable() {
-		@Override
-		public void run() {
-			try {
-				while (isRunning()) {
-					process();
-				}
-			} catch (final IOException ex) {
-				// If we aren't running, exception is expected.
-				if (isRunning()) {
-					Log.e(Globals.LOG_TAG, "Error reading socket", ex);
-				}
-			} finally {
-				running = false;
-				synchronized (monitor) {
-					monitor.notifyAll();
-				}
-			}
-		}
-	};
 
 	public void start() {
 		this.thread.start();

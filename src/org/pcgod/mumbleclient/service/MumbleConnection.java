@@ -57,11 +57,11 @@ public class MumbleConnection implements Runnable {
 	 *
 	 */
 	class TcpSocketReader extends MumbleSocketReader {
+		private byte[] msg = null;
+
 		public TcpSocketReader(Object monitor) {
 			super(monitor, "TcpReader");
 		}
-
-		private byte[] msg = null;
 
 		@Override
 		public boolean isRunning() {
@@ -89,13 +89,13 @@ public class MumbleConnection implements Runnable {
 	 *
 	 */
 	class UdpSocketReader extends MumbleSocketReader {
-		public UdpSocketReader(Object monitor) {
-			super(monitor, "UdpReader");
-		}
-
 		private final DatagramPacket packet = new DatagramPacket(
 			new byte[UDP_BUFFER_SIZE],
 			UDP_BUFFER_SIZE);
+
+		public UdpSocketReader(Object monitor) {
+			super(monitor, "UdpReader");
+		}
 
 		@Override
 		public boolean isRunning() {
@@ -425,33 +425,12 @@ public class MumbleConnection implements Runnable {
 		}
 	}
 
-	private void reportError(String error, Exception e) {
-		if (suppressErrors) {
-			Log.w(Globals.LOG_TAG, "Error while disconnecting");
-			Log.w(Globals.LOG_TAG, error, e);
-			return;
-		}
-		connectionHost.setError(String.format(error));
-		Log.e(Globals.LOG_TAG, error, e);
-	}
+	public Thread start(Protocol protocol) {
+		this.protocol = protocol;
 
-	private boolean handleSendingException(IOException e) {
-		// If we are already disconnecting, just ignore this.
-		if (disconnecting)
-			return true;
-
-		// Otherwise see if we should be disconnecting really.
-		if (!isConnectionAlive()) {
-			reportError(String.format("Connection lost: %s", e.getMessage()), e);
-			disconnect();
-		} else {
-			// Connection is alive but we still couldn't send message?
-			reportError(String.format(
-				"Error while sending message: %s",
-				e.getMessage()), e);
-		}
-
-		return false;
+		final Thread t = new Thread(this, "MumbleConnection");
+		t.start();
+		return t;
 	}
 
 	public void syncCryptKeys(byte[] key, byte[] clientNonce, byte[] serverNonce) {
@@ -462,14 +441,6 @@ public class MumbleConnection implements Runnable {
 		} else {
 			cryptState.setServerNonce(serverNonce);
 		}
-	}
-
-	public Thread start(Protocol protocol) {
-		this.protocol = protocol;
-
-		final Thread t = new Thread(this, "MumbleConnection");
-		t.start();
-		return t;
 	}
 
 	private void cleanConnection() {
@@ -488,34 +459,6 @@ public class MumbleConnection implements Runnable {
 		if (udpSocket.isConnected()) {
 			udpSocket.close();
 		}
-	}
-
-	protected Socket connectTcp() throws NoSuchAlgorithmException,
-		KeyManagementException, IOException, UnknownHostException {
-		final SSLContext ctx_ = SSLContext.getInstance("TLS");
-		ctx_.init(
-			null,
-			new TrustManager[] { new LocalSSLTrustManager() },
-			null);
-		final SSLSocketFactory factory = ctx_.getSocketFactory();
-		final SSLSocket sslSocket = (SSLSocket) factory.createSocket(host, port);
-		sslSocket.setUseClientMode(true);
-		sslSocket.setEnabledProtocols(new String[] { "TLSv1" });
-		sslSocket.startHandshake();
-
-		Log.i(Globals.LOG_TAG, "TCP/SSL socket opened");
-
-		return sslSocket;
-	}
-
-	protected DatagramSocket connectUdp() throws SocketException,
-		UnknownHostException {
-		udpSocket = new DatagramSocket();
-		udpSocket.connect(Inet4Address.getByName(host), port);
-
-		Log.i(Globals.LOG_TAG, "UDP Socket opened");
-
-		return udpSocket;
 	}
 
 	private void handleProtocol() throws IOException,
@@ -569,5 +512,62 @@ public class MumbleConnection implements Runnable {
 			tcpReader.stop();
 			udpReader.stop();
 		}
+	}
+
+	private boolean handleSendingException(IOException e) {
+		// If we are already disconnecting, just ignore this.
+		if (disconnecting)
+			return true;
+
+		// Otherwise see if we should be disconnecting really.
+		if (!isConnectionAlive()) {
+			reportError(String.format("Connection lost: %s", e.getMessage()), e);
+			disconnect();
+		} else {
+			// Connection is alive but we still couldn't send message?
+			reportError(String.format(
+				"Error while sending message: %s",
+				e.getMessage()), e);
+		}
+
+		return false;
+	}
+
+	private void reportError(String error, Exception e) {
+		if (suppressErrors) {
+			Log.w(Globals.LOG_TAG, "Error while disconnecting");
+			Log.w(Globals.LOG_TAG, error, e);
+			return;
+		}
+		connectionHost.setError(String.format(error));
+		Log.e(Globals.LOG_TAG, error, e);
+	}
+
+	protected Socket connectTcp() throws NoSuchAlgorithmException,
+		KeyManagementException, IOException, UnknownHostException {
+		final SSLContext ctx_ = SSLContext.getInstance("TLS");
+		ctx_.init(
+			null,
+			new TrustManager[] { new LocalSSLTrustManager() },
+			null);
+		final SSLSocketFactory factory = ctx_.getSocketFactory();
+		final SSLSocket sslSocket = (SSLSocket) factory.createSocket(host, port);
+		sslSocket.setUseClientMode(true);
+		sslSocket.setEnabledProtocols(new String[] { "TLSv1" });
+		sslSocket.startHandshake();
+
+		Log.i(Globals.LOG_TAG, "TCP/SSL socket opened");
+
+		return sslSocket;
+	}
+
+	protected DatagramSocket connectUdp() throws SocketException,
+		UnknownHostException {
+		udpSocket = new DatagramSocket();
+		udpSocket.connect(Inet4Address.getByName(host), port);
+
+		Log.i(Globals.LOG_TAG, "UDP Socket opened");
+
+		return udpSocket;
 	}
 }

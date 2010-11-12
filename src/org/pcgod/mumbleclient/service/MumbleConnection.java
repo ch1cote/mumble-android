@@ -58,7 +58,7 @@ public class MumbleConnection implements Runnable {
 	 */
 	class TcpSocketReader extends MumbleSocketReader {
 		public TcpSocketReader(Object monitor) {
-			super(monitor);
+			super(monitor, "TcpReader");
 		}
 
 		private byte[] msg = null;
@@ -90,7 +90,7 @@ public class MumbleConnection implements Runnable {
 	 */
 	class UdpSocketReader extends MumbleSocketReader {
 		public UdpSocketReader(Object monitor) {
-			super(monitor);
+			super(monitor, "UdpReader");
 		}
 
 		private final DatagramPacket packet = new DatagramPacket(
@@ -200,12 +200,20 @@ public class MumbleConnection implements Runnable {
 			disconnecting = true;
 			suppressErrors = true;
 
+			// Close sockets to interrupt the reader threads. We don't need to
+			// be completely certain that they won't be re-opened by another
+			// thread as the connection thread will close them anyway. This is
+			// just to interrupt the reader threads.
 			try {
-				tcpSocket.close();
+				if (tcpSocket != null) {
+					tcpSocket.close();
+				}
 			} catch (final IOException e) {
 				Log.e(Globals.LOG_TAG, "Error disconnecting TCP socket", e);
 			}
-			udpSocket.close();
+			if (udpSocket != null) {
+				udpSocket.close();
+			}
 
 			connectionHost.setConnectionState(MumbleConnectionHost.STATE_DISCONNECTED);
 			stateLock.notifyAll();
@@ -217,7 +225,9 @@ public class MumbleConnection implements Runnable {
 	}
 
 	public final boolean isConnectionAlive() {
-		return !disconnecting && !connectionDead();
+		return !disconnecting && udpSocket != null && tcpSocket != null &&
+			   !tcpSocket.isClosed() && !tcpSocket.isConnected() &&
+			   !udpSocket.isClosed();
 	}
 
 	public final boolean isSameServer(
@@ -309,7 +319,17 @@ public class MumbleConnection implements Runnable {
 		}
 	}
 
-	public final void sendMessage(
+	/**
+	 * Sends TCP message. As it is impossible to predict the socket state this
+	 * method must be exception safe. If the sockets have gone stale it reports
+	 * error and initiates connection shutdown.
+	 *
+	 * @param t
+	 *            Message type
+	 * @param b
+	 *            Protocol Buffer message builder
+	 */
+	public final void sendTcpMessage(
 		final MessageType t,
 		final MessageLite.Builder b) {
 		final MessageLite m = b.build();
@@ -334,6 +354,17 @@ public class MumbleConnection implements Runnable {
 		}
 	}
 
+	/**
+	 * Sends UDP message. See sendTcpMessage for additional information
+	 * concerning exceptions.
+	 *
+	 * @param buffer
+	 *            Udp message buffer
+	 * @param length
+	 *            Message length
+	 * @param forceUdp
+	 *            True if the message should never be tunneled through TCP
+	 */
 	public final void sendUdpMessage(
 		final byte[] buffer,
 		final int length,
@@ -410,7 +441,7 @@ public class MumbleConnection implements Runnable {
 			return true;
 
 		// Otherwise see if we should be disconnecting really.
-		if (connectionDead()) {
+		if (!isConnectionAlive()) {
 			reportError(String.format("Connection lost: %s", e.getMessage()), e);
 			disconnect();
 		} else {
@@ -459,18 +490,6 @@ public class MumbleConnection implements Runnable {
 		}
 	}
 
-	private boolean connectionDead() {
-		// If either of the sockets is closed, play dead.
-		if (tcpSocket.isClosed() || udpSocket.isClosed())
-			return true;
-
-		// If the TCP connection has been lost, play dead.
-		if (!tcpSocket.isConnected())
-			return true;
-
-		return false;
-	}
-
 	protected Socket connectTcp() throws NoSuchAlgorithmException,
 		KeyManagementException, IOException, UnknownHostException {
 		final SSLContext ctx_ = SSLContext.getInstance("TLS");
@@ -489,7 +508,8 @@ public class MumbleConnection implements Runnable {
 		return sslSocket;
 	}
 
-	protected DatagramSocket connectUdp() throws SocketException, UnknownHostException {
+	protected DatagramSocket connectUdp() throws SocketException,
+		UnknownHostException {
 		udpSocket = new DatagramSocket();
 		udpSocket.connect(Inet4Address.getByName(host), port);
 
@@ -517,8 +537,8 @@ public class MumbleConnection implements Runnable {
 		a.setPassword(password);
 		a.addCeltVersions(Globals.CELT_VERSION);
 
-		sendMessage(MessageType.Version, v);
-		sendMessage(MessageType.Authenticate, a);
+		sendTcpMessage(MessageType.Version, v);
+		sendTcpMessage(MessageType.Authenticate, a);
 
 		if (disconnecting) {
 			return;
@@ -528,16 +548,12 @@ public class MumbleConnection implements Runnable {
 		final MumbleSocketReader tcpReader = new TcpSocketReader(stateLock);
 		final MumbleSocketReader udpReader = new UdpSocketReader(stateLock);
 
-		Thread tcpReaderThread = new Thread(tcpReader, "TCP Reader");
-		Thread udpReaderThread = new Thread(udpReader, "UDP Reader");
-
-		tcpReaderThread.start();
-		udpReaderThread.start();
+		tcpReader.start();
+		udpReader.start();
 
 		synchronized (stateLock) {
 			while (!disconnecting &&
-					tcpReaderThread.isAlive() && tcpReader.isRunning() &&
-					udpReaderThread.isAlive() && udpReader.isRunning()) {
+				   tcpReader.isRunning() && udpReader.isRunning()) {
 				stateLock.wait();
 			}
 
@@ -549,12 +565,9 @@ public class MumbleConnection implements Runnable {
 			disconnecting = true;
 			connectionHost.setConnectionState(MumbleConnectionHost.STATE_DISCONNECTED);
 
-			// Interrupt both threads in case only one of them was closed.
-			tcpReaderThread.interrupt();
-			udpReaderThread.interrupt();
-
-			tcpReaderThread = null;
-			udpReaderThread = null;
+			// Stop readers in case one of them is still running
+			tcpReader.stop();
+			udpReader.stop();
 		}
 	}
 }

@@ -48,7 +48,9 @@ public class MumbleService extends Service {
 			if (state != MumbleConnectionHost.STATE_DISCONNECTED) {
 				process();
 			} else {
-				Log.w(Globals.LOG_TAG, "Ignoring message, Service is disconnected");
+				Log.w(
+					Globals.LOG_TAG,
+					"Ignoring message, Service is disconnected");
 			}
 		}
 
@@ -175,10 +177,10 @@ public class MumbleService extends Service {
 			handler.post(new ProtocolMessage() {
 				@Override
 				public void process() {
-        			messages.add(msg);
-        			final Bundle b = new Bundle();
-        			b.putSerializable(EXTRA_MESSAGE, msg);
-        			sendBroadcast(INTENT_CHAT_TEXT_UPDATE, b);
+					messages.add(msg);
+					final Bundle b = new Bundle();
+					b.putSerializable(EXTRA_MESSAGE, msg);
+					sendBroadcast(INTENT_CHAT_TEXT_UPDATE, b);
 				}
 			});
 		}
@@ -188,9 +190,9 @@ public class MumbleService extends Service {
 				@Override
 				public void process() {
 					messages.add(msg);
-        			final Bundle b = new Bundle();
-        			b.putSerializable(EXTRA_MESSAGE, msg);
-        			sendBroadcast(INTENT_CHAT_TEXT_UPDATE, b);
+					final Bundle b = new Bundle();
+					b.putSerializable(EXTRA_MESSAGE, msg);
+					sendBroadcast(INTENT_CHAT_TEXT_UPDATE, b);
 				}
 			});
 		}
@@ -388,8 +390,6 @@ public class MumbleService extends Service {
 	}
 
 	public List<Channel> getChannelList() {
-		assertConnected();
-
 		return Collections.unmodifiableList(channels);
 	}
 
@@ -407,14 +407,10 @@ public class MumbleService extends Service {
 	}
 
 	public Channel getCurrentChannel() {
-		assertConnected();
-
 		return mProtocol.currentChannel;
 	}
 
 	public User getCurrentUser() {
-		assertConnected();
-
 		return mProtocol.currentUser;
 	}
 
@@ -429,8 +425,6 @@ public class MumbleService extends Service {
 	}
 
 	public List<User> getUserList() {
-		assertConnected();
-
 		return Collections.unmodifiableList(users);
 	}
 
@@ -494,14 +488,12 @@ public class MumbleService extends Service {
 	}
 
 	public void joinChannel(final int channelId) {
-		assertConnected();
-
 		mProtocol.joinChannel(channelId);
 	}
 
 	@Override
 	public IBinder onBind(final Intent intent) {
-		isBound  = true;
+		isBound = true;
 		Log.i(Globals.LOG_TAG, "MumbleService: Bound");
 		return mBinder;
 	}
@@ -569,7 +561,9 @@ public class MumbleService extends Service {
 		return handleCommand(intent);
 	}
 
-	public void sendChannelTextMessage(final String message, final Channel channel) {
+	public void sendChannelTextMessage(
+		final String message,
+		final Channel channel) {
 
 		mProtocol.sendChannelTextMessage(message, channel);
 	}
@@ -582,7 +576,6 @@ public class MumbleService extends Service {
 
 		if (mRecordThread == null && state) {
 			Assert.assertTrue(canSpeak());
-			assertConnected();
 
 			// start record
 			// TODO check initialized
@@ -598,12 +591,6 @@ public class MumbleService extends Service {
 			audioHost.setTalkState(
 				mProtocol.currentUser,
 				AudioOutputHost.STATE_PASSIVE);
-		}
-	}
-
-	private void assertConnected() {
-		if (!isConnected()) {
-			throw new IllegalStateException("Service is not connected");
 		}
 	}
 

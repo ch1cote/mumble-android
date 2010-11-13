@@ -42,6 +42,19 @@ public class MumbleService extends Service {
 		Disconnected, Connecting, Synchronizing, Connected
 	}
 
+	private abstract class ProtocolMessage implements Runnable {
+		@Override
+		public final void run() {
+			if (state != MumbleConnectionHost.STATE_DISCONNECTED) {
+				process();
+			} else {
+				Log.w(Globals.LOG_TAG, "Ignoring message, Service is disconnected");
+			}
+		}
+
+		protected abstract void process();
+	}
+
 	public class LocalBinder extends Binder {
 		public MumbleService getService() {
 			return MumbleService.this;
@@ -94,9 +107,9 @@ public class MumbleService extends Service {
 	private final MumbleProtocolHost protocolHost = new MumbleProtocolHost() {
 		@Override
 		public void channelAdded(final Channel channel) {
-			handler.post(new Runnable() {
+			handler.post(new ProtocolMessage() {
 				@Override
-				public void run() {
+				public void process() {
 					channels.add(channel);
 					sendBroadcast(INTENT_CHANNEL_LIST_UPDATE);
 				}
@@ -105,9 +118,9 @@ public class MumbleService extends Service {
 
 		@Override
 		public void channelRemoved(final int channelId) {
-			handler.post(new Runnable() {
+			handler.post(new ProtocolMessage() {
 				@Override
-				public void run() {
+				public void process() {
 					for (int i = 0; i < channels.size(); i++) {
 						if (channels.get(i).id == channelId) {
 							channels.remove(i);
@@ -121,9 +134,9 @@ public class MumbleService extends Service {
 
 		@Override
 		public void channelUpdated(final Channel channel) {
-			handler.post(new Runnable() {
+			handler.post(new ProtocolMessage() {
 				@Override
-				public void run() {
+				public void process() {
 					for (int i = 0; i < channels.size(); i++) {
 						if (channels.get(i).id == channel.id) {
 							channels.set(i, channel);
@@ -136,9 +149,9 @@ public class MumbleService extends Service {
 		}
 
 		public void currentChannelChanged() {
-			handler.post(new Runnable() {
+			handler.post(new ProtocolMessage() {
 				@Override
-				public void run() {
+				public void process() {
 					sendBroadcast(INTENT_CURRENT_CHANNEL_CHANGED);
 				}
 			});
@@ -146,9 +159,9 @@ public class MumbleService extends Service {
 
 		@Override
 		public void currentUserUpdated() {
-			handler.post(new Runnable() {
+			handler.post(new ProtocolMessage() {
 				@Override
-				public void run() {
+				public void process() {
 					if (!canSpeak() && isRecording()) {
 						setRecording(false);
 					}
@@ -159,17 +172,27 @@ public class MumbleService extends Service {
 		}
 
 		public void messageReceived(final Message msg) {
-			messages.add(msg);
-			final Bundle b = new Bundle();
-			b.putSerializable(EXTRA_MESSAGE, msg);
-			sendBroadcast(INTENT_CHAT_TEXT_UPDATE, b);
+			handler.post(new ProtocolMessage() {
+				@Override
+				public void process() {
+        			messages.add(msg);
+        			final Bundle b = new Bundle();
+        			b.putSerializable(EXTRA_MESSAGE, msg);
+        			sendBroadcast(INTENT_CHAT_TEXT_UPDATE, b);
+				}
+			});
 		}
 
 		public void messageSent(final Message msg) {
-			messages.add(msg);
-			final Bundle b = new Bundle();
-			b.putSerializable(EXTRA_MESSAGE, msg);
-			sendBroadcast(INTENT_CHAT_TEXT_UPDATE, b);
+			handler.post(new ProtocolMessage() {
+				@Override
+				public void process() {
+					messages.add(msg);
+        			final Bundle b = new Bundle();
+        			b.putSerializable(EXTRA_MESSAGE, msg);
+        			sendBroadcast(INTENT_CHAT_TEXT_UPDATE, b);
+				}
+			});
 		}
 
 		@Override
@@ -188,16 +211,16 @@ public class MumbleService extends Service {
 				@Override
 				public void run() {
 					MumbleService.this.synced = synced;
-					broadcastState();
+					updateConnectionState();
 				}
 			});
 		}
 
 		@Override
 		public void userAdded(final User user) {
-			handler.post(new Runnable() {
+			handler.post(new ProtocolMessage() {
 				@Override
-				public void run() {
+				public void process() {
 					users.add(user);
 					final Bundle b = new Bundle();
 					b.putSerializable(EXTRA_USER, user);
@@ -208,9 +231,9 @@ public class MumbleService extends Service {
 
 		@Override
 		public void userRemoved(final int userId) {
-			handler.post(new Runnable() {
+			handler.post(new ProtocolMessage() {
 				@Override
-				public void run() {
+				public void process() {
 					for (int i = 0; i < users.size(); i++) {
 						if (users.get(i).session == userId) {
 							final User user = users.remove(i);
@@ -230,9 +253,9 @@ public class MumbleService extends Service {
 
 		@Override
 		public void userUpdated(final User user) {
-			handler.post(new Runnable() {
+			handler.post(new ProtocolMessage() {
 				@Override
-				public void run() {
+				public void process() {
 					for (int i = 0; i < users.size(); i++) {
 						if (users.get(i).session == user.session) {
 							users.set(i, user);
@@ -298,12 +321,10 @@ public class MumbleService extends Service {
 							mNotification = null;
 						}
 
-						// Clear the user and channel collections.
-						users.clear();
-						channels.clear();
-					}
+						updateConnectionState();
 
-					broadcastState();
+						tryClear();
+					}
 				}
 			});
 		}
@@ -355,6 +376,7 @@ public class MumbleService extends Service {
 
 	private final Object[] mStartForegroundArgs = new Object[2];
 	private final Object[] mStopForegroundArgs = new Object[1];
+	private boolean isBound = false;
 
 	public boolean canSpeak() {
 		return mProtocol.canSpeak;
@@ -479,8 +501,29 @@ public class MumbleService extends Service {
 
 	@Override
 	public IBinder onBind(final Intent intent) {
+		isBound  = true;
 		Log.i(Globals.LOG_TAG, "MumbleService: Bound");
 		return mBinder;
+	}
+
+	@Override
+	public boolean onUnbind(Intent intent) {
+		isBound = false;
+		tryClear();
+		return false;
+	}
+
+	/**
+	 * Attempts to clear the stored data.
+	 *
+	 * Clears the data only when it doesn't affect the objects that depend on
+	 * the service.
+	 */
+	private void tryClear() {
+		if (!isBound && serviceState == ConnectionState.Disconnected) {
+			users.clear();
+			channels.clear();
+		}
 	}
 
 	@Override
@@ -565,8 +608,6 @@ public class MumbleService extends Service {
 	}
 
 	private void broadcastState() {
-		resolveConnectionState();
-
 		final Bundle b = new Bundle();
 		b.putSerializable(EXTRA_CONNECTION_STATE, serviceState);
 		sendBroadcast(INTENT_CONNECTION_STATE_CHANGED);
@@ -577,7 +618,9 @@ public class MumbleService extends Service {
 				serviceState.toString());
 	}
 
-	private void resolveConnectionState() {
+	private void updateConnectionState() {
+		final ConnectionState oldState = serviceState;
+
 		switch (state) {
 		case MumbleConnectionHost.STATE_CONNECTING:
 			serviceState = ConnectionState.Connecting;
@@ -593,6 +636,9 @@ public class MumbleService extends Service {
 		default:
 			Assert.fail();
 		}
+
+		if (oldState != serviceState)
+			broadcastState();
 	}
 
 	void sendBroadcast(final String action) {

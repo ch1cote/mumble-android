@@ -47,10 +47,10 @@ public class MumbleProtocol implements Protocol {
 	 * The time window during which the last successful UDP ping must have been
 	 * transmitted. If the time since the last successful UDP ping is greater
 	 * than this treshold the connection falls back on TCP tunneling.
-	 * 
+	 *
 	 * NOTE: This is the time when the last successfully received ping was SENT
 	 * by the client.
-	 * 
+	 *
 	 * 6000 gives 1 second reply-time as the ping interval is 5000 seconds
 	 * currently.
 	 */
@@ -329,13 +329,13 @@ public class MumbleProtocol implements Protocol {
 		final int type = buffer[0] >> 5 & 0x7;
 		if (type == UDPMESSAGETYPE_UDPPING) {
 			final long timestamp = ((long) (buffer[1] & 0xFF) << 56) |
-									((long) (buffer[2] & 0xFF) << 48) |
-									((long) (buffer[3] & 0xFF) << 40) |
-									((long) (buffer[4] & 0xFF) << 32) |
-									((long) (buffer[5] & 0xFF) << 24) |
-									((long) (buffer[6] & 0xFF) << 16) |
-									((long) (buffer[7] & 0xFF) << 8) |
-									((buffer[8] & 0xFF));
+								   ((long) (buffer[2] & 0xFF) << 48) |
+								   ((long) (buffer[3] & 0xFF) << 40) |
+								   ((long) (buffer[4] & 0xFF) << 32) |
+								   ((long) (buffer[5] & 0xFF) << 24) |
+								   ((long) (buffer[6] & 0xFF) << 16) |
+								   ((long) (buffer[7] & 0xFF) << 8) |
+								   ((buffer[8] & 0xFF));
 
 			conn.refreshUdpLimit(timestamp + UDP_PING_TRESHOLD);
 		} else {

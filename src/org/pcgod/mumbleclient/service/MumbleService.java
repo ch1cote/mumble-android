@@ -483,6 +483,10 @@ public class MumbleService extends Service {
 		mProtocol.joinChannel(channelId);
 	}
 
+	public final void authenticate(final String[] tokens) {
+		mProtocol.authenticate(tokens);
+	}
+
 	@Override
 	public IBinder onBind(final Intent intent) {
 		Log.i(Globals.LOG_TAG, "MumbleService: Bound");

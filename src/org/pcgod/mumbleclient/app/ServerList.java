@@ -242,7 +242,7 @@ public class ServerList extends ConnectedListActivity {
 		builder.setMessage("Are you sure you want to delete this server?")
 			.setCancelable(false)
 			.setPositiveButton(
-				"Yes",
+			R.string.yes,
 				new DialogInterface.OnClickListener() {
 					public void onClick(
 						final DialogInterface dialog,
@@ -258,7 +258,7 @@ public class ServerList extends ConnectedListActivity {
 						}
 					}
 				})
-			.setNegativeButton("No", new DialogInterface.OnClickListener() {
+			.setNegativeButton(R.string.no, new DialogInterface.OnClickListener() {
 				public void onClick(final DialogInterface dialog, final int id) {
 					dialog.cancel();
 				}

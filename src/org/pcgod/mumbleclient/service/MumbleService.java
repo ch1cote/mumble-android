@@ -38,9 +38,6 @@ import android.util.Log;
  * @author Rantanen
  */
 public class MumbleService extends Service {
-	public enum ConnectionState {
-		Disconnected, Connecting, Synchronizing, Connected
-	}
 
 	private abstract class ProtocolMessage implements Runnable {
 		@Override
@@ -62,6 +59,15 @@ public class MumbleService extends Service {
 			return MumbleService.this;
 		}
 	}
+
+	public static final int CONNECTION_STATE_DISCONNECTED = 0;
+	public static final int CONNECTION_STATE_CONNECTING = 1;
+	public static final int CONNECTION_STATE_SYNCHRONIZING = 2;
+	public static final int CONNECTION_STATE_CONNECTED = 3;
+
+	private static final String[] CONNECTION_STATE_NAMES = {
+		"Disconnected", "Connecting", "Synchronizing", "Connected"
+	};
 
 	public static final String ACTION_CONNECT = "mumbleclient.action.CONNECT";
 	public static final String INTENT_CHANNEL_LIST_UPDATE = "mumbleclient.intent.CHANNEL_LIST_UPDATE";
@@ -362,7 +368,7 @@ public class MumbleService extends Service {
 
 	int state;
 	boolean synced;
-	ConnectionState serviceState;
+	int serviceState;
 	String errorString;
 	final List<Message> messages = new LinkedList<Message>();
 	final List<Channel> channels = new ArrayList<Channel>();
@@ -402,7 +408,7 @@ public class MumbleService extends Service {
 		return mProtocol.codec;
 	}
 
-	public ConnectionState getConnectionState() {
+	public int getConnectionState() {
 		return serviceState;
 	}
 
@@ -480,7 +486,7 @@ public class MumbleService extends Service {
 	}
 
 	public boolean isConnected() {
-		return serviceState == ConnectionState.Connected;
+		return serviceState == CONNECTION_STATE_CONNECTED;
 	}
 
 	public boolean isRecording() {
@@ -512,7 +518,7 @@ public class MumbleService extends Service {
 	 * the service.
 	 */
 	private void tryClear() {
-		if (!isBound && serviceState == ConnectionState.Disconnected) {
+		if (!isBound && serviceState == CONNECTION_STATE_DISCONNECTED) {
 			users.clear();
 			channels.clear();
 		}
@@ -535,7 +541,7 @@ public class MumbleService extends Service {
 		}
 
 		Log.i(Globals.LOG_TAG, "MumbleService: Created");
-		serviceState = ConnectionState.Disconnected;
+		serviceState = CONNECTION_STATE_DISCONNECTED;
 	}
 
 	@Override
@@ -602,23 +608,23 @@ public class MumbleService extends Service {
 		Log.i(
 			Globals.LOG_TAG,
 			"MumbleService: Connection state changed to " +
-				serviceState.toString());
+				CONNECTION_STATE_NAMES[serviceState]);
 	}
 
 	private void updateConnectionState() {
-		final ConnectionState oldState = serviceState;
+		final int oldState = serviceState;
 
 		switch (state) {
 		case MumbleConnectionHost.STATE_CONNECTING:
-			serviceState = ConnectionState.Connecting;
+			serviceState = CONNECTION_STATE_CONNECTING;
 			break;
 		case MumbleConnectionHost.STATE_CONNECTED:
 			serviceState = synced
-				? ConnectionState.Connected
-				: ConnectionState.Synchronizing;
+				? CONNECTION_STATE_CONNECTED
+				: CONNECTION_STATE_SYNCHRONIZING;
 			break;
 		case MumbleConnectionHost.STATE_DISCONNECTED:
-			serviceState = ConnectionState.Disconnected;
+			serviceState = CONNECTION_STATE_DISCONNECTED;
 			break;
 		default:
 			Assert.fail();

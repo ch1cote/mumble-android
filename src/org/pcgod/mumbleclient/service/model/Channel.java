@@ -1,9 +1,21 @@
 package org.pcgod.mumbleclient.service.model;
 
-import java.io.Serializable;
+import android.os.Parcel;
+import android.os.Parcelable;
 
-public class Channel implements Serializable {
-	private static final long serialVersionUID = 1L;
+public class Channel implements Parcelable {
+
+	public static final Parcelable.Creator<Channel> CREATOR = new Creator<Channel>() {
+		@Override
+		public Channel[] newArray(int size) {
+			return new Channel[size];
+		}
+
+		@Override
+		public Channel createFromParcel(Parcel source) {
+			return new Channel(source);
+		}
+	};
 
 	public int id;
 	public String name;
@@ -16,6 +28,36 @@ public class Channel implements Serializable {
 	 * caches where it might be stored.
 	 */
 	public boolean removed = false;
+
+	public Channel() {
+	}
+
+	public Channel(Parcel parcel) {
+		readFromParcel(parcel);
+	}
+
+	@Override
+	public void writeToParcel(Parcel dest, int flags) {
+		dest.writeInt(0); // Version
+
+		dest.writeInt(id);
+		dest.writeString(name);
+		dest.writeInt(userCount);
+	}
+
+	private void readFromParcel(Parcel in) {
+		in.readInt(); // Version
+
+		id = in.readInt();
+		name = in.readString();
+		userCount = in.readInt();
+	}
+
+	@Override
+	public int describeContents() {
+		// TODO Auto-generated method stub
+		return 0;
+	}
 
 	@Override
 	public final boolean equals(final Object o) {
@@ -35,4 +77,5 @@ public class Channel implements Serializable {
 		return "Channel [id=" + id + ", name=" + name + ", userCount=" +
 				userCount + "]";
 	}
+
 }

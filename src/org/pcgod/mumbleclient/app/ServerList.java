@@ -4,18 +4,18 @@ import junit.framework.Assert;
 
 import org.pcgod.mumbleclient.Globals;
 import org.pcgod.mumbleclient.R;
+import org.pcgod.mumbleclient.service.BaseServiceObserver;
 import org.pcgod.mumbleclient.service.MumbleService;
 
 import android.app.AlertDialog;
 import android.app.Dialog;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.database.Cursor;
 import android.media.AudioManager;
 import android.os.Bundle;
+import android.os.RemoteException;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.LayoutInflater;
@@ -41,19 +41,6 @@ import android.widget.AdapterView.AdapterContextMenuInfo;
  *
  */
 public class ServerList extends ConnectedListActivity {
-
-	private class ConnectionBroadcastReceiver extends BroadcastReceiver {
-		@Override
-		public void onReceive(Context context, Intent intent) {
-			if (intent.getAction().equals(
-				MumbleService.INTENT_CONNECTION_STATE_CHANGED)) {
-				checkConnectionState();
-				return;
-			}
-
-			Assert.fail("Unknown Broadcast action");
-		}
-	};
 
 	private class ServerAdapter extends BaseAdapter {
 		private final Context context;
@@ -114,6 +101,13 @@ public class ServerList extends ConnectedListActivity {
 		}
 	}
 
+	private class ServerServiceObserver extends BaseServiceObserver {
+		@Override
+		public void onConnectionStateChanged(int state) throws RemoteException {
+			checkConnectionState();
+		}
+	}
+
 	long serverToDeleteId = -1;
 	DbAdapter dbAdapter;
 
@@ -130,8 +124,8 @@ public class ServerList extends ConnectedListActivity {
 
 	private static final String STATE_WAIT_CONNECTION = "org.pcgod.mumbleclient.ServerList.WAIT_CONNECTION";
 
-	private BroadcastReceiver bcReceiver;
 	private Bundle savedInstanceState;
+	private ServerServiceObserver mServiceObserver;
 
 	@Override
 	public final boolean onContextItemSelected(final MenuItem item) {
@@ -290,24 +284,26 @@ public class ServerList extends ConnectedListActivity {
 		return name;
 	}
 
-	private boolean registerConnectionReceiver() {
-		if (bcReceiver != null)
-			return false;
+	private void registerConnectionReceiver() {
+		if (mServiceObserver != null)
+			return;
 
-		final IntentFilter ifilter = new IntentFilter();
-		ifilter.addAction(MumbleService.INTENT_CONNECTION_STATE_CHANGED);
-		bcReceiver = new ConnectionBroadcastReceiver();
-		registerReceiver(bcReceiver, ifilter);
-		return true;
+		mServiceObserver = new ServerServiceObserver();
+
+		if (mService != null) {
+			mService.registerObserver(mServiceObserver);
+		}
 	}
 
-	private boolean unregisterConnectionReceiver() {
-		if (bcReceiver == null)
-			return false;
+	private void unregisterConnectionReceiver() {
+		if (mServiceObserver == null)
+			return;
 
-		unregisterReceiver(bcReceiver);
-		bcReceiver = null;
-		return true;
+		if (mService != null) {
+			mService.unregisterObserver(mServiceObserver);
+		}
+
+		mServiceObserver = null;
 	}
 
 	/**
@@ -352,8 +348,10 @@ public class ServerList extends ConnectedListActivity {
 		// FIXME: Volume settings
 		setVolumeControlStream(AudioManager.STREAM_MUSIC);
 
+		// Create the service observer. If such exists, onServiceBound will
+		// register it.
 		if (savedInstanceState != null) {
-			this.savedInstanceState = savedInstanceState;
+			mServiceObserver = new ServerServiceObserver();
 		}
 
 		dbAdapter = new DbAdapter(this);
@@ -402,7 +400,7 @@ public class ServerList extends ConnectedListActivity {
 	@Override
 	protected void onSaveInstanceState(Bundle outState) {
 		super.onSaveInstanceState(outState);
-		if (bcReceiver != null) {
+		if (mServiceObserver != null) {
 			outState.putBoolean(STATE_WAIT_CONNECTION, true);
 		}
 	}
@@ -410,11 +408,10 @@ public class ServerList extends ConnectedListActivity {
 	@Override
 	protected void onServiceBound() {
 
-		if (savedInstanceState != null &&
-			savedInstanceState.getBoolean(STATE_WAIT_CONNECTION, false)) {
+		if (mServiceObserver != null) {
 
 			if (!checkConnectionState()) {
-				registerConnectionReceiver();
+				mService.registerObserver(mServiceObserver);
 			}
 		}
 	}

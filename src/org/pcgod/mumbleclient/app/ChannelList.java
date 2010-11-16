@@ -268,7 +268,7 @@ public class ChannelList extends ConnectedActivity {
 			final Intent i = new Intent(this, ChatActivity.class);
 			startActivity(i);
 			return true;
-		case MENU_ACCESS_TOKENS :
+		case MENU_ACCESS_TOKENS:
 			final Intent tokensIntent = new Intent(this, AccessTokens.class);
 			startActivity(tokensIntent);
 			return true;

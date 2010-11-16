@@ -4,13 +4,14 @@ public class AccessToken {
 	public String value;
 	public final long id;
 	public final long serverId;
-	
+
 	public AccessToken(String value, long id, long serverId) {
 		this.value = value;
 		this.id = id;
 		this.serverId = serverId;
 	}
-	
+
+	@Override
 	public String toString() {
 		return this.value;
 	}

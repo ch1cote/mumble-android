@@ -26,7 +26,6 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Binder;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -724,25 +723,11 @@ public class MumbleService extends Service {
 			broadcastState();
 	}
 
-	void sendBroadcast(final String action) {
-		sendBroadcast(action, null);
-	}
-
-	void sendBroadcast(final String action, final Bundle extras) {
-		final Intent i = new Intent(action);
-
-		if (extras != null) {
-			i.putExtras(extras);
-		}
-
-		sendBroadcast(i);
-	}
-
 	/**
 	 * This is a wrapper around the new startForeground method, using the older
 	 * APIs if it is not available.
 	 */
-	void startForegroundCompat(final int id, final Notification notification) {
+	private void startForegroundCompat(final int id, final Notification notification) {
 		// If we have the new startForeground API, then use it.
 		if (mStartForeground != null) {
 			mStartForegroundArgs[0] = Integer.valueOf(id);
@@ -770,7 +755,7 @@ public class MumbleService extends Service {
 	 * This is a wrapper around the new stopForeground method, using the older
 	 * APIs if it is not available.
 	 */
-	void stopForegroundCompat(final int id) {
+	private void stopForegroundCompat(final int id) {
 		// If we have the new stopForeground API, then use it.
 		if (mStopForeground != null) {
 			mStopForegroundArgs[0] = Boolean.TRUE;

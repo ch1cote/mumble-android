@@ -1,5 +1,6 @@
 package org.pcgod.mumbleclient.service;
 
+import org.pcgod.mumbleclient.service.model.Channel;
 import org.pcgod.mumbleclient.service.model.Message;
 import org.pcgod.mumbleclient.service.model.User;
 
@@ -14,15 +15,15 @@ public class BaseServiceObserver implements IServiceObserver {
 	}
 
 	@Override
-	public void onChannelAdded() throws RemoteException {
+	public void onChannelAdded(Channel channel) throws RemoteException {
 	}
 
 	@Override
-	public void onChannelRemoved() throws RemoteException {
+	public void onChannelRemoved(Channel channel) throws RemoteException {
 	}
 
 	@Override
-	public void onChannelUpdated() throws RemoteException {
+	public void onChannelUpdated(Channel channel) throws RemoteException {
 	}
 
 	@Override

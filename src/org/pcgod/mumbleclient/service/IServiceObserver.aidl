@@ -2,14 +2,13 @@ package org.pcgod.mumbleclient.service;
 
 import org.pcgod.mumbleclient.service.model.User;
 import org.pcgod.mumbleclient.service.model.Message;
+import org.pcgod.mumbleclient.service.model.Channel;
 
 interface IServiceObserver {
 	
-	void onChannelAdded(); //Channel channel);
-
-	void onChannelRemoved(); //int channelId);
-
-	void onChannelUpdated(); //Channel channel);
+	void onChannelAdded(in Channel channel);
+	void onChannelRemoved(in Channel channel);
+	void onChannelUpdated(in Channel channel);
 
 	void onCurrentChannelChanged();
 	

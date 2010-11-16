@@ -111,7 +111,7 @@ public class MumbleService extends Service {
 				@Override
 				protected void broadcast(IServiceObserver observer)
 					throws RemoteException {
-					observer.onChannelAdded();
+					observer.onChannelAdded(channel);
 				}
 			});
 		}
@@ -119,11 +119,12 @@ public class MumbleService extends Service {
 		@Override
 		public void channelRemoved(final int channelId) {
 			handler.post(new ServiceProtocolMessage() {
+				Channel channel;
 				@Override
 				public void process() {
 					for (int i = 0; i < channels.size(); i++) {
 						if (channels.get(i).id == channelId) {
-							channels.remove(i);
+							channel = channels.remove(i);
 							break;
 						}
 					}
@@ -132,7 +133,7 @@ public class MumbleService extends Service {
 				@Override
 				protected void broadcast(IServiceObserver observer)
 					throws RemoteException {
-					observer.onChannelRemoved();
+					observer.onChannelRemoved(channel);
 				}
 			});
 		}
@@ -153,7 +154,7 @@ public class MumbleService extends Service {
 				@Override
 				protected void broadcast(IServiceObserver observer)
 					throws RemoteException {
-					observer.onChannelUpdated();
+					observer.onChannelUpdated(channel);
 				}
 			});
 		}
@@ -337,43 +338,9 @@ public class MumbleService extends Service {
 
 					// Handle foreground stuff
 					if (state == MumbleConnectionHost.STATE_CONNECTED) {
-						mNotification = new Notification(
-							R.drawable.icon,
-							"Mumble connected",
-							System.currentTimeMillis());
-
-						final Intent channelListIntent = new Intent(
-							MumbleService.this,
-							ChannelList.class);
-						channelListIntent.addFlags(
-							Intent.FLAG_ACTIVITY_CLEAR_TOP).addFlags(
-							Intent.FLAG_ACTIVITY_NEW_TASK);
-						mNotification.setLatestEventInfo(
-							MumbleService.this,
-							"Mumble",
-							"Mumble is connected to a server",
-							PendingIntent.getActivity(
-								MumbleService.this,
-								0,
-								channelListIntent,
-								0));
-						startForegroundCompat(1, mNotification);
+						showNotification();
 					} else if (state == MumbleConnectionHost.STATE_DISCONNECTED) {
-
-						if (mProtocol != null) {
-							mProtocol.stop();
-						}
-
-						if (mNotification != null) {
-							stopForegroundCompat(1);
-							mNotification = null;
-						}
-
-						disableOldHosts();
-
-						updateConnectionState();
-
-						tryClear();
+						doConnectionDisconnect();
 					}
 				}
 
@@ -444,16 +411,17 @@ public class MumbleService extends Service {
 
 	private final Object[] mStartForegroundArgs = new Object[2];
 	private final Object[] mStopForegroundArgs = new Object[1];
-	private boolean isBound = false;
 	private ServiceProtocolHost mProtocolHost;
 	private ServiceConnectionHost mConnectionHost;
 	private ServiceAudioOutputHost mAudioHost;
 
 	public boolean canSpeak() {
-		return mProtocol.canSpeak;
+		return mProtocol != null && mProtocol.canSpeak;
 	}
 
 	public void disconnect() {
+		// Call disconnect on the connection.
+		// It'll notify us with DISCONNECTED when it's done.
 		this.setRecording(false);
 		mClient.disconnect();
 	}
@@ -505,7 +473,7 @@ public class MumbleService extends Service {
 		return Collections.unmodifiableList(users);
 	}
 
-	public int handleCommand(final Intent intent) {
+	private int handleCommand(final Intent intent) {
 		// When using START_STICKY the onStartCommand can be called with
 		// null intent after the whole service process has been killed.
 		// Such scenario doesn't make sense for the service process so
@@ -526,19 +494,11 @@ public class MumbleService extends Service {
 		final String password = intent.getStringExtra(EXTRA_PASSWORD);
 
 		if (mClient != null &&
-			mClient.isSameServer(host, port, username, password) &&
-			isConnected()) {
+			mClient.isSameServer(host, port, username, password)) {
 			return START_NOT_STICKY;
 		}
 
-		if (mClientThread != null) {
-			mClientThread.interrupt();
-		}
-
-		disableOldHosts();
-
-		users.clear();
-		channels.clear();
+		doConnectionDisconnect();
 
 		mProtocolHost = new ServiceProtocolHost();
 		mConnectionHost = new ServiceConnectionHost();
@@ -562,23 +522,6 @@ public class MumbleService extends Service {
 		return START_NOT_STICKY;
 	}
 
-	private void disableOldHosts() {
-		if (mProtocolHost != null) {
-			mProtocolHost.disable();
-			mProtocolHost = null;
-		}
-
-		if (mConnectionHost != null) {
-			mConnectionHost.disable();
-			mConnectionHost = null;
-		}
-
-		if (mAudioHost != null) {
-			mAudioHost.disable();
-			mAudioHost = null;
-		}
-	}
-
 	public boolean isConnected() {
 		return serviceState == CONNECTION_STATE_CONNECTED;
 	}
@@ -593,29 +536,8 @@ public class MumbleService extends Service {
 
 	@Override
 	public IBinder onBind(final Intent intent) {
-		isBound = true;
 		Log.i(Globals.LOG_TAG, "MumbleService: Bound");
 		return mBinder;
-	}
-
-	@Override
-	public boolean onUnbind(Intent intent) {
-		isBound = false;
-		tryClear();
-		return false;
-	}
-
-	/**
-	 * Attempts to clear the stored data.
-	 *
-	 * Clears the data only when it doesn't affect the objects that depend on
-	 * the service.
-	 */
-	private void tryClear() {
-		if (!isBound && serviceState == CONNECTION_STATE_DISCONNECTED) {
-			users.clear();
-			channels.clear();
-		}
 	}
 
 	@Override
@@ -643,7 +565,7 @@ public class MumbleService extends Service {
 		super.onDestroy();
 
 		// Make sure our notification is gone.
-		stopForegroundCompat(1);
+		hideNotification();
 
 		Log.i(Globals.LOG_TAG, "MumbleService: Destroyed");
 	}
@@ -675,8 +597,6 @@ public class MumbleService extends Service {
 	public void setRecording(final boolean state) {
 
 		if (mRecordThread == null && state) {
-			Assert.assertTrue(canSpeak());
-
 			// start record
 			// TODO check initialized
 			mRecordThread = new Thread(new RecordThread(this), "record");
@@ -707,6 +627,74 @@ public class MumbleService extends Service {
 			Globals.LOG_TAG,
 			"MumbleService: Connection state changed to " +
 				CONNECTION_STATE_NAMES[serviceState]);
+	}
+
+	private void doConnectionDisconnect() {
+		// First disable all hosts to prevent old callbacks from being processed.
+		if (mProtocolHost != null) {
+			mProtocolHost.disable();
+			mProtocolHost = null;
+		}
+
+		if (mConnectionHost != null) {
+			mConnectionHost.disable();
+			mConnectionHost = null;
+		}
+
+		if (mAudioHost != null) {
+			mAudioHost.disable();
+			mAudioHost = null;
+		}
+
+		// Stop threads.
+		if (mProtocol != null) {
+			mProtocol.stop();
+		}
+
+		if (mClientThread != null) {
+			mClientThread.interrupt();
+		}
+
+		// Broadcast state, this is synchronous with observers.
+		state = MumbleConnectionHost.STATE_DISCONNECTED;
+		updateConnectionState();
+
+		hideNotification();
+
+		// Now observers shouldn't need these anymore.
+		users.clear();
+		channels.clear();
+	}
+
+	private void hideNotification() {
+		if (mNotification != null) {
+			stopForegroundCompat(1);
+			mNotification = null;
+		}
+	}
+
+	private void showNotification() {
+		mNotification = new Notification(
+			R.drawable.icon,
+			"Mumble connected",
+			System.currentTimeMillis());
+
+		final Intent channelListIntent = new Intent(
+			MumbleService.this,
+			ChannelList.class);
+		channelListIntent.addFlags(
+			Intent.FLAG_ACTIVITY_CLEAR_TOP).addFlags(
+			Intent.FLAG_ACTIVITY_NEW_TASK);
+		mNotification.setLatestEventInfo(
+			MumbleService.this,
+			"Mumble",
+			"Mumble is connected to a server",
+			PendingIntent.getActivity(
+				MumbleService.this,
+				0,
+				channelListIntent,
+				0));
+		startForegroundCompat(1, mNotification);
 	}
 
 	private void updateConnectionState() {

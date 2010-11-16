@@ -48,31 +48,76 @@ public class MumbleService extends Service {
 		}
 	}
 
-	public static final int CONNECTION_STATE_DISCONNECTED = 0;
-	public static final int CONNECTION_STATE_CONNECTING = 1;
-	public static final int CONNECTION_STATE_SYNCHRONIZING = 2;
-	public static final int CONNECTION_STATE_CONNECTED = 3;
+	class ServiceAudioOutputHost extends AbstractHost implements
+		AudioOutputHost {
+		abstract class ServiceProtocolMessage extends ProtocolMessage {
+			@Override
+			protected Iterable<IServiceObserver> getObservers() {
+				return observers.values();
+			}
+		}
 
-	private static final String[] CONNECTION_STATE_NAMES = {
-			"Disconnected", "Connecting", "Synchronizing", "Connected"
-	};
+		@Override
+		public void setTalkState(final User user, final int talkState) {
+			handler.post(new ServiceProtocolMessage() {
+				@Override
+				public void process() {
+					user.talkingState = talkState;
+				}
 
-	public static final String ACTION_CONNECT = "mumbleclient.action.CONNECT";
-	public static final String EXTRA_MESSAGE = "mumbleclient.extra.MESSAGE";
+				@Override
+				protected void broadcast(IServiceObserver observer)
+					throws RemoteException {
+					observer.onUserUpdated(user);
+				}
+			});
+		}
+	}
 
-	public static final String EXTRA_CONNECTION_STATE = "mumbleclient.extra.CONNECTION_STATE";
-	public static final String EXTRA_HOST = "mumbleclient.extra.HOST";
-	public static final String EXTRA_PORT = "mumbleclient.extra.PORT";
-	public static final String EXTRA_USERNAME = "mumbleclient.extra.USERNAME";
-	public static final String EXTRA_PASSWORD = "mumbleclient.extra.PASSWORD";
-	public static final String EXTRA_USER = "mumbleclient.extra.USER";
+	class ServiceConnectionHost extends AbstractHost implements
+		MumbleConnectionHost {
+		abstract class ServiceProtocolMessage extends ProtocolMessage {
+			@Override
+			protected Iterable<IServiceObserver> getObservers() {
+				return observers.values();
+			}
+		}
 
-	private MumbleConnection mClient;
-	private MumbleProtocol mProtocol;
-	private Thread mClientThread;
-	private Thread mRecordThread;
+		public void setConnectionState(final int state) {
+			handler.post(new ServiceProtocolMessage() {
+				@Override
+				public void process() {
 
-	Notification mNotification;
+					if (MumbleService.this.state == state) {
+						return;
+					}
+
+					MumbleService.this.state = state;
+
+					// Handle foreground stuff
+					if (state == MumbleConnectionHost.STATE_CONNECTED) {
+						showNotification();
+					} else if (state == MumbleConnectionHost.STATE_DISCONNECTED) {
+						doConnectionDisconnect();
+					}
+				}
+
+				@Override
+				protected void broadcast(IServiceObserver observer) {
+				}
+			});
+		}
+
+		@Override
+		public void setError(final String error) {
+			handler.post(new Runnable() {
+				@Override
+				public void run() {
+					errorString = error;
+				}
+			});
+		}
+	}
 
 	/**
 	 * Connection host for MumbleConnection.
@@ -120,6 +165,7 @@ public class MumbleService extends Service {
 		public void channelRemoved(final int channelId) {
 			handler.post(new ServiceProtocolMessage() {
 				Channel channel;
+
 				@Override
 				public void process() {
 					for (int i = 0; i < channels.size(); i++) {
@@ -239,13 +285,13 @@ public class MumbleService extends Service {
 		public void setSynchronized(final boolean synced) {
 			handler.post(new ServiceProtocolMessage() {
 				@Override
-				protected void process() {
-					MumbleService.this.synced = synced;
-					updateConnectionState();
+				protected void broadcast(IServiceObserver observer) {
 				}
 
 				@Override
-				protected void broadcast(IServiceObserver observer) {
+				protected void process() {
+					MumbleService.this.synced = synced;
+					updateConnectionState();
 				}
 			});
 		}
@@ -314,78 +360,36 @@ public class MumbleService extends Service {
 			});
 		}
 
+	}
+
+	public static final int CONNECTION_STATE_DISCONNECTED = 0;
+
+	public static final int CONNECTION_STATE_CONNECTING = 1;
+
+	public static final int CONNECTION_STATE_SYNCHRONIZING = 2;
+	public static final int CONNECTION_STATE_CONNECTED = 3;
+
+	private static final String[] CONNECTION_STATE_NAMES = {
+			"Disconnected", "Connecting", "Synchronizing", "Connected"
 	};
+	public static final String ACTION_CONNECT = "mumbleclient.action.CONNECT";
+	public static final String EXTRA_MESSAGE = "mumbleclient.extra.MESSAGE";
+	public static final String EXTRA_CONNECTION_STATE = "mumbleclient.extra.CONNECTION_STATE";
+	public static final String EXTRA_HOST = "mumbleclient.extra.HOST";
+	public static final String EXTRA_PORT = "mumbleclient.extra.PORT";
 
-	class ServiceConnectionHost extends AbstractHost implements
-		MumbleConnectionHost {
-		abstract class ServiceProtocolMessage extends ProtocolMessage {
-			@Override
-			protected Iterable<IServiceObserver> getObservers() {
-				return observers.values();
-			}
-		}
+	public static final String EXTRA_USERNAME = "mumbleclient.extra.USERNAME";
+	public static final String EXTRA_PASSWORD = "mumbleclient.extra.PASSWORD";
+	public static final String EXTRA_USER = "mumbleclient.extra.USER";
+	private MumbleConnection mClient;
 
-		public void setConnectionState(final int state) {
-			handler.post(new ServiceProtocolMessage() {
-				@Override
-				public void process() {
+	private MumbleProtocol mProtocol;
 
-					if (MumbleService.this.state == state) {
-						return;
-					}
+	private Thread mClientThread;;
 
-					MumbleService.this.state = state;
+	private Thread mRecordThread;;
 
-					// Handle foreground stuff
-					if (state == MumbleConnectionHost.STATE_CONNECTED) {
-						showNotification();
-					} else if (state == MumbleConnectionHost.STATE_DISCONNECTED) {
-						doConnectionDisconnect();
-					}
-				}
-
-				@Override
-				protected void broadcast(IServiceObserver observer) {
-				}
-			});
-		}
-
-		@Override
-		public void setError(final String error) {
-			handler.post(new Runnable() {
-				@Override
-				public void run() {
-					errorString = error;
-				}
-			});
-		}
-	};
-
-	class ServiceAudioOutputHost extends AbstractHost implements
-		AudioOutputHost {
-		abstract class ServiceProtocolMessage extends ProtocolMessage {
-			@Override
-			protected Iterable<IServiceObserver> getObservers() {
-				return observers.values();
-			}
-		}
-
-		@Override
-		public void setTalkState(final User user, final int talkState) {
-			handler.post(new ServiceProtocolMessage() {
-				@Override
-				public void process() {
-					user.talkingState = talkState;
-				}
-
-				@Override
-				protected void broadcast(IServiceObserver observer)
-					throws RemoteException {
-					observer.onUserUpdated(user);
-				}
-			});
-		}
-	};
+	Notification mNotification;;
 
 	private final LocalBinder mBinder = new LocalBinder();
 	final Handler handler = new Handler();
@@ -430,14 +434,6 @@ public class MumbleService extends Service {
 		return Collections.unmodifiableList(channels);
 	}
 
-	public void registerObserver(IServiceObserver observer) {
-		observers.put(observer, observer);
-	}
-
-	public void unregisterObserver(IServiceObserver observer) {
-		observers.remove(observer);
-	}
-
 	public int getCodec() {
 		if (mProtocol.codec == MumbleProtocol.CODEC_NOCODEC) {
 			throw new IllegalStateException(
@@ -471,55 +467,6 @@ public class MumbleService extends Service {
 
 	public List<User> getUserList() {
 		return Collections.unmodifiableList(users);
-	}
-
-	private int handleCommand(final Intent intent) {
-		// When using START_STICKY the onStartCommand can be called with
-		// null intent after the whole service process has been killed.
-		// Such scenario doesn't make sense for the service process so
-		// returning START_NOT_STICKY for now.
-		//
-		// Leaving the null check in though just in case.
-		//
-		// TODO: Figure out the correct start type.
-		if (intent == null) {
-			return START_NOT_STICKY;
-		}
-
-		Log.i(Globals.LOG_TAG, "MumbleService: Starting service");
-
-		final String host = intent.getStringExtra(EXTRA_HOST);
-		final int port = intent.getIntExtra(EXTRA_PORT, -1);
-		final String username = intent.getStringExtra(EXTRA_USERNAME);
-		final String password = intent.getStringExtra(EXTRA_PASSWORD);
-
-		if (mClient != null &&
-			mClient.isSameServer(host, port, username, password)) {
-			return START_NOT_STICKY;
-		}
-
-		doConnectionDisconnect();
-
-		mProtocolHost = new ServiceProtocolHost();
-		mConnectionHost = new ServiceConnectionHost();
-		mAudioHost = new ServiceAudioOutputHost();
-
-		mClient = new MumbleConnection(
-			mConnectionHost,
-			host,
-			port,
-			username,
-			password);
-
-		mProtocol = new MumbleProtocol(
-			mProtocolHost,
-			mAudioHost,
-			mClient,
-			getApplicationContext());
-
-		mClientThread = mClient.start(mProtocol);
-
-		return START_NOT_STICKY;
 	}
 
 	public boolean isConnected() {
@@ -583,6 +530,10 @@ public class MumbleService extends Service {
 		return handleCommand(intent);
 	}
 
+	public void registerObserver(IServiceObserver observer) {
+		observers.put(observer, observer);
+	}
+
 	public void sendChannelTextMessage(
 		final String message,
 		final Channel channel) {
@@ -612,6 +563,10 @@ public class MumbleService extends Service {
 				mProtocol.currentUser,
 				AudioOutputHost.STATE_PASSIVE);
 		}
+	}
+
+	public void unregisterObserver(IServiceObserver observer) {
+		observers.remove(observer);
 	}
 
 	private void broadcastState() {
@@ -664,6 +619,55 @@ public class MumbleService extends Service {
 		// Now observers shouldn't need these anymore.
 		users.clear();
 		channels.clear();
+	}
+
+	private int handleCommand(final Intent intent) {
+		// When using START_STICKY the onStartCommand can be called with
+		// null intent after the whole service process has been killed.
+		// Such scenario doesn't make sense for the service process so
+		// returning START_NOT_STICKY for now.
+		//
+		// Leaving the null check in though just in case.
+		//
+		// TODO: Figure out the correct start type.
+		if (intent == null) {
+			return START_NOT_STICKY;
+		}
+
+		Log.i(Globals.LOG_TAG, "MumbleService: Starting service");
+
+		final String host = intent.getStringExtra(EXTRA_HOST);
+		final int port = intent.getIntExtra(EXTRA_PORT, -1);
+		final String username = intent.getStringExtra(EXTRA_USERNAME);
+		final String password = intent.getStringExtra(EXTRA_PASSWORD);
+
+		if (mClient != null &&
+			mClient.isSameServer(host, port, username, password)) {
+			return START_NOT_STICKY;
+		}
+
+		doConnectionDisconnect();
+
+		mProtocolHost = new ServiceProtocolHost();
+		mConnectionHost = new ServiceConnectionHost();
+		mAudioHost = new ServiceAudioOutputHost();
+
+		mClient = new MumbleConnection(
+			mConnectionHost,
+			host,
+			port,
+			username,
+			password);
+
+		mProtocol = new MumbleProtocol(
+			mProtocolHost,
+			mAudioHost,
+			mClient,
+			getApplicationContext());
+
+		mClientThread = mClient.start(mProtocol);
+
+		return START_NOT_STICKY;
 	}
 
 	private void hideNotification() {
